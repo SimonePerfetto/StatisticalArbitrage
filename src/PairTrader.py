@@ -13,7 +13,7 @@ from src.Window import Window
 class PairTrader:
 
     def __init__(self,
-                 target_number_of_coint_pairs: int = 10,
+                 target_number_of_coint_pairs: int = 100,
                  backtest_start: date = date(2008, 1, 2),
                  max_active_pairs: float = 10,
                  trading_window_length: timedelta = timedelta(days=120),
@@ -41,7 +41,7 @@ class PairTrader:
         self.emergency_delta_z: float = emergency_delta_z
 
         # Last SNP date, hard coded for now...
-        self.backtest_end = date(year=2020, month=12, day=31) if backtest_end is None else backtest_end
+        self.backtest_end = date(year=2019, month=12, day=31) if backtest_end is None else backtest_end
 
         self.repository = DataRepository(trading_window_length)
 
@@ -49,7 +49,7 @@ class PairTrader:
                                              trading_win_len=trading_window_length,
                                              repository=self.repository)
 
-        self.today = self.current_window.lookback_win_dates[-1]
+        self.today = self.current_window.window_trading_days[-1]
         self.day_count: int = 0
         self.last_traded_date: Optional[date] = None
 
@@ -79,10 +79,10 @@ class PairTrader:
             if self.last_traded_date is None \
                     or ((self.today - self.last_traded_date).days % self.trading_freq.days == 0):
 
-                is_window_end_or_halfway = (self.day_count % self.window_length.days) == \
-                                           (0 or int(self.window_length.days / 8))
+                is_window_end_or_intermediate_cointegration_dates = \
+                    (self.day_count % self.window_length.days) == (0 or int(self.window_length.days / 8))
 
-                if is_window_end_or_halfway or self.last_traded_date is None:
+                if is_window_end_or_intermediate_cointegration_dates or self.last_traded_date is None:
                     print("Clustering...")
                     clusters = self.clusterer.dbscan(self.today, eps=0.02,
                                                      min_samples=4, window=self.current_window)
@@ -95,8 +95,8 @@ class PairTrader:
                     cointegrated_pairs = self.cointegrator.get_previous_cointegrated_pairs(self.current_window)
 
                 decisions = self.dm.make_decision(cointegrated_pairs)
-                self.last_traded_date = self.today
                 self.portfolio.execute_trades(decisions)
+                self.last_traded_date = self.today
 
             self.__evolve()
 
@@ -108,19 +108,20 @@ class PairTrader:
         # Do all the things to push the window forward to next working day
         # Adjust "static" parameters
         self.day_count += 1
-        self.current_window.roll_forward_one_day()
-        self.today = self.current_window.lookback_win_dates[-1]
         self.portfolio.update_portfolio(self.today)
+        self.current_window.roll_forward_one_day()
+        self.today = self.current_window.window_trading_days[-1]
+
 
 
 if __name__ == '__main__':
 
     start_time = time.time()
     PairTrader(
-        backtest_start=date(2012, 5, 7),  # must be a trading day
+        backtest_start=date(2008, 1, 2),  # must be a trading day
         trading_window_length=timedelta(days=120),
         trading_freq=timedelta(days=1),
-        target_number_of_coint_pairs=1,
+        target_number_of_coint_pairs=100,
         max_active_pairs=8,  # how many pairs (positions) we allow ourselves to have open at any one time
         hurst_exp_threshold=0.15,
         backtest_end=date(2019, 12, 31),

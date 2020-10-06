@@ -119,6 +119,8 @@ class Portfolio:
         cur_port_val = 0
 
         for pair in self.cur_positions:
+            print("today: ", today)
+            print()
             todays_prices = self.current_window.get_data(tickers=[pair.asset1, pair.asset2],
                                                          features=[Features.CLOSE]).loc[today]
 

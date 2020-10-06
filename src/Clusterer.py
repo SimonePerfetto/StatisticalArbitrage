@@ -29,9 +29,8 @@ class Clusterer:
 
         clustering_features = [Features.INTRADAY_VOL, Features.VOLUME]
         snp_to_cluster_on = window.get_data(None, clustering_features)
-
         # to now we have a single number per column,
-        # (averaging over time dim) so can now compare cross-sectionally, rank-wise
+        # (averaging over time dim) so can now compare cross-sectionally
 
         mean_of_features_over_time = snp_to_cluster_on.mean(axis=0)
 
