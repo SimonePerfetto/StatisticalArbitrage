@@ -16,12 +16,12 @@ class SignalGenerator:
     def __init__(self,
                  port: Portfolio,
                  entry_z: float,
-                 exit_delta_z: float,
+                 exit_z: float,
                  emergency_delta_z: float,
                  max_active_pairs: int):
         self.port: Portfolio = port
         self.entry_z: float = entry_z
-        self.exit_delta_z: float = exit_delta_z
+        self.exit_z: float = exit_z
         self.emergency_delta_z: float = emergency_delta_z
         self.max_active_pairs = max_active_pairs
         self.time_stop_loss = 15
@@ -39,10 +39,10 @@ class SignalGenerator:
         :return: bool values for natural close and emergency close
         """
         if pos_type == PositionType.LONG:
-            is_natural_close_required = recent_dev_scaled < (position_init_z - self.exit_delta_z)
+            is_natural_close_required = recent_dev_scaled < self.exit_z
             is_emergency_close_required = recent_dev_scaled > (self.emergency_delta_z + position_init_z)
         elif pos_type == PositionType.SHORT:
-            is_natural_close_required = recent_dev_scaled > (position_init_z + self.exit_delta_z)
+            is_natural_close_required = recent_dev_scaled > -self.exit_z
             is_emergency_close_required = recent_dev_scaled < \
                                           (position_init_z - self.emergency_delta_z)
 
@@ -97,6 +97,7 @@ class SignalGenerator:
         # 1) if pair not cointegrated, exit position
         if position_pair not in coint_pairs_tickers_list:
             position.change_position_type(PositionType.NOT_INVESTED)
+            position.closingtype = "emergency"
             trades_to_execute_list.append(position)
             self.emergency_close_count += 1
             self.open_count_current -= 1
@@ -110,6 +111,7 @@ class SignalGenerator:
             is_passed_time_limit = decision_day > (position.init_date + timedelta(self.time_stop_loss))
             if is_passed_time_limit:
                 position.change_position_type(PositionType.NOT_INVESTED)
+                position.closingtype = "emergency"
                 trades_to_execute_list.append(position)
                 self.time_stop_loss_count += 1
                 self.open_count_current -= 1
@@ -122,9 +124,13 @@ class SignalGenerator:
                                                   position.init_z)
                 if is_natural_close_required or is_emergency_close_required:
                     position.change_position_type(PositionType.NOT_INVESTED)
+                    if is_natural_close_required:
+                        self.natural_close_count += 1
+                        position.closingtype = "natural"
+                    else:
+                        self.emergency_close_count += 1
+                        position.closingtype = "emergency"
                     trades_to_execute_list.append(position)
-                    if is_natural_close_required: self.natural_close_count += 1
-                    else: self.emergency_close_count += 1
                     self.open_count_current -= 1
                 else:
                     # no need to close, so keep the same position as before (being it SHORT or LONG)

@@ -5,10 +5,6 @@ from src.util.Tickers import Tickers
 
 
 class Position:
-    def set_position_value(self, value):
-        self.init_value = value
-        self.current_value = value
-
     def __init__(self,
                  ticker1,
                  ticker2,
@@ -18,6 +14,7 @@ class Position:
                  init_date=None,
                  init_z=None,
                  weight1=0,
+                 closingtype=None
                  ):
         self.asset1: Tickers = ticker1
         self.asset2: Tickers = ticker2
@@ -36,6 +33,11 @@ class Position:
         self.current_value: float = 0
         self.pos_hist = list()
         self.closed = False
+        self.closingtype = closingtype
+
+    def set_position_value(self, value):
+        self.init_value = value
+        self.current_value = value
 
     def update_weight(self, asset1_val, asset2_val):
         self.weight1 = asset1_val / (asset1_val + asset2_val)

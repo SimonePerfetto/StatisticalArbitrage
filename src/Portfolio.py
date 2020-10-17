@@ -86,7 +86,7 @@ class Portfolio:
         if not (position in self.cur_positions):
             print("do not have this position open")
         else:
-            print(f"Closing/emergency threshold is passed for active pair {position.asset1}, "
+            print(f"{position.closingtype} threshold is passed for active pair {position.asset1}, "
                   f"{position.asset2}. Closing position...")
             self.cur_positions.remove(position)
 
@@ -130,7 +130,6 @@ class Portfolio:
                                self.cum_return * 100])
         print(f"Total Capital: {self.total_capital[-1]:.4f}\tCum Return: {self.cum_return:4f}")
 
-# TO BE CHANGEDD###############################################
     def execute_trades(self, trades_to_execute_list):
         for position in trades_to_execute_list:
             if position.new_pos is PositionType.NOT_INVESTED:
