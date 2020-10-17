@@ -4,19 +4,17 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 from pandas import DataFrame, to_datetime
-
-from src.DataRepository import Universes, DataRepository
+from typing import List
 from src.Performance import get_performance_stats
 from src.Position import Position
 from src.Window import Window
 from src.util.Features import Features, PositionType
-from src.util.Tickers import SnpTickers
+from src.Cointegrator import CointegratedPair
 
 
 class Portfolio:
 
-    def __init__(self, cash: float, window: Window,
-                 max_active_pairs: float = 10):
+    def __init__(self, cash: float, window: Window):
         # port_value: value of all the positions we have currently
         # cur_positions: list of all current positions
         # hist_positions: list of all positions (both historical and current)
@@ -37,14 +35,12 @@ class Portfolio:
         self.current_window: Window = window
         self.port_hist = list()
         self.rebalance_threshold = float(1)
-        self.loading = float(0.1)
-        self.number_active_pairs = 0
-        self.max_active_pairs = max_active_pairs
+        self.single_pair_loading = float(0.1)
 
         self.port_hist.append(
             [self.current_window.window_end + pd.DateOffset(-1), self.cur_cash, self.active_port_value,
              self.cur_cash + self.active_port_value, self.realised_pnl, self.daily_return * 100,
-             self.cum_return * 100, self.number_active_pairs])
+             self.cum_return * 100])
 
     def reset_values(self):
         self.cur_cash = self.init_cash
@@ -52,14 +48,14 @@ class Portfolio:
         self.active_port_value = float(0)
         self.realised_pnl = float(0)
 
+    # noinspection PyTypeChecker
     def open_position(self,
                       position: Position):
-
         cur_price = self.current_window.get_data(tickers=[position.asset1, position.asset2],
                                                  features=[Features.CLOSE])
         # notional reference amount for each pair. Actual positions are scaled accordingly with respect to
         # maximum weight as per below formula
-        pair_dedicated_cash = self.init_cash * self.loading / max(abs(position.weight1), abs(position.weight2))
+        pair_dedicated_cash = self.init_cash * self.single_pair_loading / max(abs(position.weight1), abs(position.weight2))
         position.quantity1 = int(pair_dedicated_cash * position.weight1 / cur_price.iloc[-1, 0])
         position.quantity2 = int(pair_dedicated_cash * position.weight2 / cur_price.iloc[-1, 1])
         asset1_value = cur_price.iloc[-1, 0] * position.quantity1
@@ -67,17 +63,15 @@ class Portfolio:
         commission = self.generate_commission(asset1_value, asset2_value)
         pair_dedicated_cash = asset1_value + asset2_value
         position.set_position_value(pair_dedicated_cash)
-
         if pair_dedicated_cash > self.cur_cash:
             print('No sufficient cash to open position')
         else:
             print(f"{position.asset1}, {position.asset2} "
                   f"are cointegrated and zscore is in trading range. Opening position....")
-            self.number_active_pairs += 1
             self.cur_positions.append(position)
             self.hist_positions.append(position)
 
-            self.cur_cash -= pair_dedicated_cash + commission
+            self.cur_cash -= (pair_dedicated_cash + commission)
             self.active_port_value += pair_dedicated_cash
             print(f'Asset 1: {position.asset1} @${round(cur_price.iloc[-1, 0], 2)} '
                   f'Quantity: {round(position.quantity1, 2)} Value: {round(asset1_value, 2)}')
@@ -85,15 +79,15 @@ class Portfolio:
                   f'Quantity: {round(position.quantity2, 2)} Value: {round(asset2_value, 2)}')
             print(f'Cash balance: ${self.cur_cash}')
 
+    # noinspection PyTypeChecker
     def close_position(self, position: Position):
         cur_price = self.current_window.get_data(tickers=[position.asset1, position.asset2],
                                                  features=[Features.CLOSE])
         if not (position in self.cur_positions):
-            print("dont have this position open")
+            print("do not have this position open")
         else:
             print(f"Closing/emergency threshold is passed for active pair {position.asset1}, "
                   f"{position.asset2}. Closing position...")
-            self.number_active_pairs -= 1
             self.cur_positions.remove(position)
 
             asset1_value = cur_price.iloc[-1, 0] * position.quantity1
@@ -119,8 +113,6 @@ class Portfolio:
         cur_port_val = 0
 
         for pair in self.cur_positions:
-            print("today: ", today)
-            print()
             todays_prices = self.current_window.get_data(tickers=[pair.asset1, pair.asset2],
                                                          features=[Features.CLOSE]).loc[today]
 
@@ -135,16 +127,16 @@ class Portfolio:
         self.cum_return = self.total_capital[-1]/self.total_capital[0] - 1
         self.port_hist.append([self.current_window.window_end, self.cur_cash, self.active_port_value,
                                self.cur_cash + self.active_port_value, self.realised_pnl, self.daily_return * 100,
-                               self.cum_return * 100, self.number_active_pairs])
+                               self.cum_return * 100])
         print(f"Total Capital: {self.total_capital[-1]:.4f}\tCum Return: {self.cum_return:4f}")
 
-    def execute_trades(self, decisions):
-        for decision in decisions:
-            if decision.old_action is not decision.new_action:
-                if decision.old_action is PositionType.NOT_INVESTED:
-                    self.open_position(decision.position)
-                elif decision.new_action is PositionType.NOT_INVESTED:
-                    self.close_position(decision.position)
+# TO BE CHANGEDD###############################################
+    def execute_trades(self, trades_to_execute_list):
+        for position in trades_to_execute_list:
+            if position.new_pos is PositionType.NOT_INVESTED:
+                self.close_position(position)
+            else:
+                 self.open_position(position)
 
     def get_current_positions(self):
         return self.cur_positions
@@ -178,7 +170,7 @@ class Portfolio:
         pd.set_option('expand_frame_repr', False)
         df = DataFrame(self.port_hist, columns=['date', 'cash', 'port_value', 'total_capital',
                                                 'realised_pnl', 'return',
-                                                'cum_return', 'active_pairs'])
+                                                'cum_return'])
         df['date'] = to_datetime(df['date'])
         df = df.set_index('date')
         return df.round(2)
@@ -213,7 +205,7 @@ class Portfolio:
 
         normalise = lambda series: series / (series[0] if int(series[0]) != 0 else 1.0)
 
-        plt.figure(1, figsize=(10,7))
+        plt.figure(1, figsize=(10, 7))
         plt.plot(all_history.index, normalise(all_history["total_capital"]), label=r"Portfolio")
         plt.plot(all_history.index, normalise(sp), label=r"SnP 500")
         plt.xlabel("Date")
@@ -223,37 +215,3 @@ class Portfolio:
         plt.savefig("{time.time()}_total_capital.png", dpi=200)
 
         plt.show()
-
-if __name__ == '__main__':
-    current_window = Window(window_start=date(2008, 1, 3), trading_win_len=timedelta(days=90),
-                            repository=DataRepository())
-
-    port = Portfolio(10000, current_window)
-    p1 = Position(SnpTickers.AAPL, SnpTickers.GOOGL, 1.5, -0.5, PositionType.LONG)
-    port.open_position(p1)
-    port.update_portfolio()
-
-    # port.evolve()
-    # port.rebalance(p1, [1.5, -1.5])
-    # port.update_portfolio()
-
-    # fundamental data from 2008 (2nd)
-    # only load from disk data required for the next window - speeding -IP
-    #   past 20 day lookback vol of returns, -TY&SC
-    #   volumes, -TY&SC
-    #   60 day lookback cum returns (momentum -like) -TY&SC
-    # can change eps factor to play with clustering
-    # accurate measure of vol for the portfolio -> SR -SP
-    # finish implementation of max dd -SC
-    # Logging to a file, combined with SC's csv for df - OY
-    #
-
-    current_window.roll_forward_one_day()
-    port.close_position(p1)
-    port.update_portfolio()
-
-    print(port.get_port_hist())
-
-    positions = port.get_hist_positions()
-    print(positions[0].asset1, positions[0].asset2)
-    print(positions[0].get_pos_hist())

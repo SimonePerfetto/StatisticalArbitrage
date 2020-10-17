@@ -4,7 +4,6 @@ import pandas as pd
 pd.options.display.max_columns = None
 pd.options.display.max_rows = None
 from sklearn.cluster import DBSCAN
-from src.DataRepository import Universes
 from src.util.Features import Features
 from datetime import date
 
@@ -26,7 +25,6 @@ class Clusterer:
 
     def dbscan(self, today: date, min_samples, eps=None, window=None):
         self.window = window
-
         clustering_features = [Features.INTRADAY_VOL, Features.VOLUME]
         snp_to_cluster_on = window.get_data(None, clustering_features)
         # to now we have a single number per column,

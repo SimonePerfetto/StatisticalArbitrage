@@ -1,20 +1,19 @@
 import itertools
 from enum import Enum, unique
 from fractions import Fraction
-from typing import Dict, Tuple, List
+from typing import Dict, Tuple, List, Optional
 import pandas as pd
 import numpy as np
 from numpy import array
 from pandas import DataFrame
 from sklearn.linear_model import LinearRegression
 from statsmodels.tsa.api import adfuller
-import cufflinks as cf
 from src.DataRepository import DataRepository
-from src.DataRepository import Universes
 from src.Window import Window
 from src.util.Features import Features
 from src.util.Tickers import Tickers
-from src.util.util import get_universe_from_ticker
+from src.Position import Position, PositionType
+import cufflinks as cf
 
 
 
@@ -33,7 +32,9 @@ class CointegratedPair:
                  recent_dev: float,
                  recent_dev_scaled: float,
                  recent_dev_scaled_hist: list,
-                 cointegration_rank: float):
+                 cointegration_rank: float,
+                 position: Position
+                 ):
         self.pair: Tuple[Tuple[Tickers]] = pair
         self.mu_x_ann: float = mu_x_ann
         self.sigma_x_ann: float = sigma_x_ann
@@ -47,6 +48,7 @@ class CointegratedPair:
         self.recent_dev_scaled: float = recent_dev_scaled
         self.recent_dev_scaled_hist: list = recent_dev_scaled_hist
         self.cointegration_rank: float = cointegration_rank
+        self.position: Position = position
 
 
 @unique
@@ -105,6 +107,10 @@ class Cointegrator:
                                                          he_test, hurst_exp_threshold)
 
                 if is_cointegrated:
+                    #a = pd.concat([t1, t2], axis=1).iplot(asFigure=True)
+                    #b = pd.concat([np.log(t1), np.log(t2)], axis=1).iplot(asFigure=True)
+                    #a.show()
+                    #b.show()
                     n_cointegrated += 1
                     r_x = self.__log_returner(t1)
                     mu_x_ann = float(250 * np.mean(r_x))
@@ -115,11 +121,13 @@ class Cointegrator:
                     recent_dev_scaled_hist = [recent_dev_scaled]
                     cointegration_rank = self.__score_coint(adf_test_statistic, self.adf_confidence_level,
                                                             adf_critical_values, he_test, hurst_exp_threshold, 10)
+                    position = Position(pair[0], pair[1])
                     current_cointegrated_pairs.append(
                         CointegratedPair(pair, mu_x_ann, sigma_x_ann, reg_output, scaled_beta,
                                          hl_test, ou_mean, ou_std, ou_diffusion_v,
                                          recent_dev, recent_dev_scaled,
-                                         recent_dev_scaled_hist, cointegration_rank))
+                                         recent_dev_scaled_hist, cointegration_rank,
+                                         position))
 
                     if n_cointegrated == self.target_number_of_coint_pairs:
                         current_cointegrated_pairs = sorted(current_cointegrated_pairs,
@@ -159,7 +167,6 @@ class Cointegrator:
         return adf_test_statistic, adf_critical_values
 
     def __hurst_exponent_test(self, residuals, current_window: Window) -> float:
-
         # lag vector
         tau_vector = []
         # var[ (1 - L^n)y  ]
@@ -182,7 +189,6 @@ class Cointegrator:
         return float(beta / 2)
 
     def __hl(self, residuals: array) -> float:
-
         # independent variable
         lagged_residuals = residuals[:-1]
         # dependent variable
@@ -253,6 +259,6 @@ class Cointegrator:
             )
 
             coint_pair.recent_dev_scaled = (coint_pair.recent_dev - coint_pair.ou_mean) / coint_pair.ou_std
-            coint_pair.recent_dev_scaled_hist.append(coint_pair.recent_dev_scaled)
+            coint_pair.recent_dev_scaled_hist.append(float(coint_pair.recent_dev_scaled))
 
         return self.previous_cointegrated_pairs
