@@ -142,16 +142,16 @@ if __name__ == '__main__':
         window_length=timedelta(days=120),
         trading_freq=timedelta(days=1),
         target_number_of_coint_pairs=50,
-        clust_and_coint_frequency_per_window=4,
+        clust_and_coint_frequency_per_window=8,
         max_active_pairs=8,  # how many pairs (positions) we allow ourselves to have open at any one time
         hurst_exp_threshold=0.15,
         backtest_end=date(2019, 12, 31),
         adf_confidence_level=AdfPrecisions.ONE_PCT,
-        max_mean_rev_time=15,  # we don't want any pairs that mean-revert slower than this (number larger)
+        max_mean_rev_time=15,  # we don't want any pairs that mean-revert in more days than this
         entry_z_lower_bound=2.0,  # how many stds away from mean the residual is, our entry signal lowerbound
         entry_z_upper_bound=3.0,  # entry signal upperbound
         exit_delta_z=1.5,  # when to close, in units of std
-        emergency_delta_z=1.5  # where |emergency_z| = |entry_z_lower_bound + emergency_delta_z|
+        emergency_delta_z=1.0  # where |emergency_z| = |entry_z_upper_bound + emergency_delta_z|
         # when to exit in an emergency, as each stock in the pair is deviating further from the other
     ).trade()
 

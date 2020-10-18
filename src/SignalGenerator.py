@@ -89,7 +89,7 @@ class SignalGenerator:
 
     def exiting_decision(self, position: Position, coint_pairs_tickers_list: List[Tuple[Tuple[Tickers]]],
                          coint_pairs_list: List[CointegratedPair], trades_to_execute_list: List[Position],
-                         coint_wdw_already_closed_positions_list: List[CointegratedPair], decision_day: date) -> None:
+                         decision_day: date) -> None:
         # position_pair is not an object from the CointegratedPair class; it is a tuple of the two
         # attributes asset1, asset2 of a "Position" object; thus, to inquire the statistical
         # properties of such pair, need to check the corresponding CointegratedPair object
@@ -113,7 +113,6 @@ class SignalGenerator:
                 position.change_position_type(PositionType.NOT_INVESTED)
                 position.closingtype = "emergency"
                 trades_to_execute_list.append(position)
-                coint_wdw_already_closed_positions_list.append(coint_pair)
                 self.time_stop_loss_count += 1
                 self.open_count_current -= 1
 
@@ -132,7 +131,6 @@ class SignalGenerator:
                         self.emergency_close_count += 1
                         position.closingtype = "emergency"
                     trades_to_execute_list.append(position)
-                    coint_wdw_already_closed_positions_list.append(position)
                     self.open_count_current -= 1
                 else:
                     # no need to close, so keep the same position as before (being it SHORT or LONG)
@@ -142,7 +140,6 @@ class SignalGenerator:
         trades_to_execute_list: List[Position] = []
         # need currently_opened_positions_list to check if we want to exit any specific position
         currently_opened_positions_list: List[Position] = self.port.cur_positions
-        coint_wdw_already_closed_positions_list: List[CointegratedPair] = self.port.coint_wdw_already_closed_positions
         # need current_position-pairs to exclude them from a potential duplicate of opened position
         current_posn_pairs = [(pos.asset1, pos.asset2) for pos in currently_opened_positions_list
                               if pos.new_pos is not PositionType.NOT_INVESTED]
@@ -156,8 +153,7 @@ class SignalGenerator:
             if self.open_count_current >= self.max_active_pairs: break
             # if coint_pair not invested, check if we need to open position by looking at zscores
             pair_is_invested: bool = coint_pair.pair in current_posn_pairs
-            pair_was_already_exploited: bool = coint_pair.pair in coint_wdw_already_closed_positions_list
-            if not pair_is_invested and not pair_was_already_exploited and \
+            if not pair_is_invested and \
                     self.entry_z_lower_bound < abs(coint_pair.recent_dev_scaled) < self.entry_z_upper_bound:
                 self.entering_decision(coint_pair, trades_to_execute_list, today)
             ##########**************########## printprintprint
@@ -169,7 +165,7 @@ class SignalGenerator:
         coint_pairs_tickers_list = [pa.pair for pa in coint_pairs_list]
         for position in currently_opened_positions_list:
             self.exiting_decision(position, coint_pairs_tickers_list, coint_pairs_list,
-                                  trades_to_execute_list, coint_wdw_already_closed_positions_list, today)
+                                  trades_to_execute_list, today)
         return trades_to_execute_list
 
 
