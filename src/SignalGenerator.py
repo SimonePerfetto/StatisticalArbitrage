@@ -14,13 +14,13 @@ class SignalGenerator:
                  port: Portfolio,
                  entry_z_lower_bound: float,
                  entry_z_upper_bound: float,
-                 exit_z: float,
+                 exit_delta_z: float,
                  emergency_delta_z: float,
                  max_active_pairs: int):
         self.port: Portfolio = port
         self.entry_z_lower_bound: float = entry_z_lower_bound
         self.entry_z_upper_bound: float = entry_z_upper_bound
-        self.exit_z: float = exit_z
+        self.exit_delta_z: float = exit_delta_z
         self.emergency_delta_z: float = emergency_delta_z
         self.max_active_pairs = max_active_pairs
         self.time_stop_loss = 15
@@ -38,10 +38,10 @@ class SignalGenerator:
         :return: bool values for natural close and emergency close
         """
         if pos_type == PositionType.LONG:
-            is_natural_close_required = recent_dev_scaled < self.exit_z
+            is_natural_close_required = recent_dev_scaled < (position_init_z - self.exit_delta_z)
             is_emergency_close_required = recent_dev_scaled > (self.emergency_delta_z + position_init_z)
         elif pos_type == PositionType.SHORT:
-            is_natural_close_required = recent_dev_scaled > -self.exit_z
+            is_natural_close_required = recent_dev_scaled > (position_init_z + self.exit_delta_z)
             is_emergency_close_required = recent_dev_scaled < \
                                           (position_init_z - self.emergency_delta_z)
 
@@ -158,10 +158,10 @@ class SignalGenerator:
             pair_is_invested: bool = coint_pair.pair in current_posn_pairs
             pair_was_already_exploited: bool = coint_pair.pair in coint_wdw_already_closed_positions_list
             if not pair_is_invested and not pair_was_already_exploited and \
-                    abs(self.entry_z_lower_bound) < abs(coint_pair.recent_dev_scaled) < abs(self.entry_z_upper_bound):
+                    self.entry_z_lower_bound < abs(coint_pair.recent_dev_scaled) < self.entry_z_upper_bound:
                 self.entering_decision(coint_pair, trades_to_execute_list, today)
             ##########**************########## printprintprint
-            if pair_is_invested: print(coint_pair.pair, coint_pair.recent_dev_scaled_hist)
+            #if pair_is_invested: print(coint_pair.pair, coint_pair.recent_dev_scaled_hist)
             ##########**************########## printprintprint
 
         ####### closing current positions ##########
@@ -173,4 +173,3 @@ class SignalGenerator:
         return trades_to_execute_list
 
 
-# controlla se current_positions is updated somewhere

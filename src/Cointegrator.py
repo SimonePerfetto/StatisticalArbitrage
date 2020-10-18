@@ -62,16 +62,12 @@ class Cointegrator:
                  target_number_of_coint_pairs: int,
                  adf_confidence_level: AdfPrecisions,
                  max_mean_rev_time: int,
-                 entry_z: float,
-                 exit_z: float,
                  previous_cointegrated_pairs: List[CointegratedPair]):
 
         self.repository: DataRepository = repository
         self.target_number_of_coint_pairs: int = target_number_of_coint_pairs
         self.adf_confidence_level: AdfPrecisions = adf_confidence_level
         self.max_mean_rev_time: int = max_mean_rev_time
-        self.entry_z: float = entry_z
-        self.exit_z: float = exit_z
         self.previous_cointegrated_pairs: List[CointegratedPair] = previous_cointegrated_pairs
 
     def generate_pairs(self,

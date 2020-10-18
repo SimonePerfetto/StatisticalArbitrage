@@ -7,9 +7,9 @@ from src.Clusterer import Clusterer
 from src.Cointegrator import Cointegrator, AdfPrecisions
 from src.DataRepository import DataRepository
 from src.Filters import Filters
+from src.Window import Window
 from src.Portfolio import Portfolio
 from src.SignalGenerator import SignalGenerator
-from src.Window import Window
 
 class PairTrader:
 
@@ -62,8 +62,6 @@ class PairTrader:
                                          target_number_of_coint_pairs,
                                          self.adf_confidence_level,
                                          self.max_mean_rev_time,
-                                         self.entry_z_lower_bound,
-                                         self.exit_delta_z,
                                          previous_cointegrated_pairs=[])
 
         self.filters = Filters()
@@ -150,8 +148,8 @@ if __name__ == '__main__':
         backtest_end=date(2019, 12, 31),
         adf_confidence_level=AdfPrecisions.ONE_PCT,
         max_mean_rev_time=15,  # we don't want any pairs that mean-revert slower than this (number larger)
-        entry_z_lower_bound=2.0,  # how many stds away from mean the residual is, our entry signal
-        entry_z_upper_bound=3.0,
+        entry_z_lower_bound=2.0,  # how many stds away from mean the residual is, our entry signal lowerbound
+        entry_z_upper_bound=3.0,  # entry signal upperbound
         exit_delta_z=1.5,  # when to close, in units of std
         emergency_delta_z=1.5  # where |emergency_z| = |entry_z_lower_bound + emergency_delta_z|
         # when to exit in an emergency, as each stock in the pair is deviating further from the other
@@ -160,10 +158,3 @@ if __name__ == '__main__':
     print(f"Backtest took {time.time() - start_time:.4f}s to run.")
 
 
-# ALMOST DONE  1) PORTFOLIO VARIANCE
-# ALMOST DONE  2) VaR - t dist/normal
-
-# 4) LOOK AHEAD VARIANCE
-
-#fig = df.iplot(asFigure=True)
-#fig.show()

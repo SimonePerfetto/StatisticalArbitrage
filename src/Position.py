@@ -10,8 +10,8 @@ class Position:
                  ticker2,
                  new_pos: PositionType = PositionType.NOT_INVESTED,
                  old_pos: PositionType = PositionType.NOT_INVESTED,
-                 weight2=0,
                  weight1=0,
+                 weight2=0,
                  init_date=None,
                  init_z=None,
                  closingtype=None

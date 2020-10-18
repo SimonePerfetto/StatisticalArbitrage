@@ -20,7 +20,6 @@ class Portfolio:
         self.init_cash = cash
         self.cur_cash = cash
         self.cur_positions = list()
-        self.coint_wdw_already_closed_positions = list()
         self.hist_positions = list()
         self.total_capital = [cash]
         self.active_port_value = float(0)
@@ -40,21 +39,14 @@ class Portfolio:
              self.cur_cash + self.active_port_value, self.realised_pnl, self.daily_return * 100,
              self.cum_return * 100])
 
-    def reset_values(self):
-        self.cur_cash = self.init_cash
-        self.cur_positions = list()
-        self.active_port_value = float(0)
-        self.realised_pnl = float(0)
 
     # noinspection PyTypeChecker
-    def open_position(self,
-                      position: Position):
+    def open_position(self, position: Position):
         cur_price = self.current_window.get_data(tickers=[position.asset1, position.asset2],
                                                  features=[Features.CLOSE])
         # notional reference amount for each pair. Actual positions are scaled accordingly with respect to
         # maximum weight as per below formula
-        pair_dedicated_cash = self.init_cash * self.single_pair_loading / max(abs(position.weight1),
-                                                                              abs(position.weight2))
+        pair_dedicated_cash = self.init_cash * self.single_pair_loading / max(abs(position.weight1), abs(position.weight2))
         position.quantity1 = int(pair_dedicated_cash * position.weight1 / cur_price.iloc[-1, 0])
         position.quantity2 = int(pair_dedicated_cash * position.weight2 / cur_price.iloc[-1, 1])
         asset1_value = cur_price.iloc[-1, 0] * position.quantity1
@@ -88,7 +80,6 @@ class Portfolio:
             print(f"{position.closingtype} threshold is passed for active pair {position.asset1}, "
                   f"{position.asset2}. Closing position...")
             self.cur_positions.remove(position)
-            self.coint_wdw_already_closed_positions.append(position)
 
             asset1_value = cur_price.iloc[-1, 0] * position.quantity1
             asset2_value = cur_price.iloc[-1, 1] * position.quantity2
@@ -137,8 +128,6 @@ class Portfolio:
             else:
                 self.open_position(position)
 
-    def get_current_positions(self):
-        return self.cur_positions
 
     def get_hist_positions(self):
         return self.hist_positions
