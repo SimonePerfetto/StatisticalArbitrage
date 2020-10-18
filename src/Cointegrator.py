@@ -21,8 +21,6 @@ class CointegratedPair:
 
     def __init__(self,
                  pair: Tuple[Tuple[Tickers]],
-                 mu_x_ann: float,
-                 sigma_x_ann: float,
                  reg_output: LinearRegression,
                  scaled_beta: float,
                  hl: float,
@@ -33,11 +31,10 @@ class CointegratedPair:
                  recent_dev_scaled: float,
                  recent_dev_scaled_hist: list,
                  cointegration_rank: float,
+                 ols_stdzed_residuals,
                  position: Position
                  ):
         self.pair: Tuple[Tuple[Tickers]] = pair
-        self.mu_x_ann: float = mu_x_ann
-        self.sigma_x_ann: float = sigma_x_ann
         self.reg_output: LinearRegression = reg_output
         self.scaled_beta: float = scaled_beta
         self.hl: float = hl
@@ -48,6 +45,7 @@ class CointegratedPair:
         self.recent_dev_scaled: float = recent_dev_scaled
         self.recent_dev_scaled_hist: list = recent_dev_scaled_hist
         self.cointegration_rank: float = cointegration_rank
+        self.ols_stdzed_residuals = ols_stdzed_residuals
         self.position: Position = position
 
 
@@ -87,8 +85,6 @@ class Cointegrator:
 
         for cluster in tickers_per_cluster:
             for pair in itertools.combinations(list(cluster), 2):
-
-
                 t1 = current_window.get_data(tickers=[pair[0]],
                                              features=[Features.CLOSE])
                 t2 = current_window.get_data(tickers=[pair[1]],
@@ -101,32 +97,35 @@ class Cointegrator:
                 adf_test_statistic, adf_critical_values = self.__adf(residuals.flatten())
                 hl_test = self.__hl(residuals)
                 he_test = self.__hurst_exponent_test(residuals, current_window)
-
+                ou_mean, ou_std, ou_diffusion_v, \
+                recent_dev, recent_dev_scaled = self.__ou_params(residuals)
+                ols_stdzed_residuals = (residuals - ou_mean) / ou_std
                 is_cointegrated = self.__acceptance_rule(adf_test_statistic, adf_critical_values,
-                                                         self.adf_confidence_level, hl_test, self.max_mean_rev_time,
-                                                         he_test, hurst_exp_threshold)
-
+                                                         self.adf_confidence_level, hl_test,
+                                                         self.max_mean_rev_time,
+                                                         he_test, hurst_exp_threshold, ols_stdzed_residuals,
+                                                         at_least=int(current_window.window_length.days / 6))
                 if is_cointegrated:
                     #a = pd.concat([t1, t2], axis=1).iplot(asFigure=True)
                     #b = pd.concat([np.log(t1), np.log(t2)], axis=1).iplot(asFigure=True)
                     #a.show()
                     #b.show()
                     n_cointegrated += 1
-                    r_x = self.__log_returner(t1)
-                    mu_x_ann = float(250 * np.mean(r_x))
-                    sigma_x_ann = float(250 ** 0.5 * np.std(r_x))
-                    ou_mean, ou_std, ou_diffusion_v, \
-                    recent_dev, recent_dev_scaled = self.__ou_params(residuals)
-                    scaled_beta = beta / (beta - 1)
+                    t1_most_recent = float(t1.iloc[-1, :])
+                    t2_most_recent = float(t2.iloc[-1, :])
+                    hedge_ratio = beta * t1_most_recent / t2_most_recent
+                    scaled_beta = hedge_ratio / (hedge_ratio - 1)
                     recent_dev_scaled_hist = [recent_dev_scaled]
                     cointegration_rank = self.__score_coint(adf_test_statistic, self.adf_confidence_level,
                                                             adf_critical_values, he_test, hurst_exp_threshold, 10)
+                    #a = pd.DataFrame(ols_stdzed_residuals).iplot(asFigure=True)
+                    #a.show()
                     position = Position(pair[0], pair[1])
                     current_cointegrated_pairs.append(
-                        CointegratedPair(pair, mu_x_ann, sigma_x_ann, reg_output, scaled_beta,
+                        CointegratedPair(pair, reg_output, scaled_beta,
                                          hl_test, ou_mean, ou_std, ou_diffusion_v,
                                          recent_dev, recent_dev_scaled,
-                                         recent_dev_scaled_hist, cointegration_rank,
+                                         recent_dev_scaled_hist, cointegration_rank, ols_stdzed_residuals,
                                          position))
 
                     if n_cointegrated == self.target_number_of_coint_pairs:
@@ -135,6 +134,7 @@ class Cointegrator:
                                                             reverse=True)
                         self.previous_cointegrated_pairs = current_cointegrated_pairs
                         return current_cointegrated_pairs
+
 
         self.previous_cointegrated_pairs = current_cointegrated_pairs
         return current_cointegrated_pairs
@@ -146,11 +146,6 @@ class Cointegrator:
         beta = float(reg_output.coef_[0])
 
         return np.array(residuals), beta, reg_output
-
-    def __log_returner(self, x: DataFrame) -> array:
-        x = np.array(x)
-        r_x = np.log(x[1:]) - np.log(x[:-1])
-        return r_x
 
     def __adf(self, residuals: array):
         '''
@@ -218,15 +213,25 @@ class Cointegrator:
 
         return ou_mean, ou_std, ou_diffusion_v, recent_dev, recent_dev_scaled
 
+    def __is_crossing_x_axis(self, stdzed_residuals, at_least: int):
+        times_x_axis_crossed = 0
+        for i in range(len(stdzed_residuals)-1):
+            if np.sign(stdzed_residuals[i])!=np.sign(stdzed_residuals[i+1]):
+                times_x_axis_crossed += 1
+        return times_x_axis_crossed >= at_least
+
+
+
     def __acceptance_rule(self, adf_test_statistic: float, adf_critical_values: Dict[str, float],
-                          adf_confidence_level: AdfPrecisions, hl_test: float, max_mean_rev_time: int, he_test: float,
-                          hurst_exp_threshold: float):
+                          adf_confidence_level: AdfPrecisions, hl_test: float, max_mean_rev_time: int,
+                          he_test: float, hurst_exp_threshold: float, stdzed_residuals, at_least:int):
 
         adf = adf_test_statistic < adf_critical_values[adf_confidence_level.value]
         hl = hl_test < max_mean_rev_time
         he = he_test < hurst_exp_threshold
+        is_x_axis_crossed_enough = self.__is_crossing_x_axis(stdzed_residuals, at_least)
 
-        return all([adf, hl, he])
+        return all([adf, hl, he, is_x_axis_crossed_enough])
 
     def __score_coint(self, t_stat: float,
                       confidence_level: AdfPrecisions,

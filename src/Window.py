@@ -1,4 +1,3 @@
-import sys
 from datetime import date, timedelta
 from typing import List, Optional, Tuple
 
@@ -45,7 +44,7 @@ class Window:
             # i.e., need to load the new window from disk
             read_ahead_win_start = self.__get_nth_working_day_ahead(next_load_start_date, 1)
             look_forward_win_dates = self.__get_window_business_days(next_load_start_date,
-                                                                    read_ahead_win_start)
+                                                                     read_ahead_win_start)
             self.repository.get(Universes.SNP, look_forward_win_dates)
 
         business_dates_to_get_data_for = self.repository.all_data.index.intersection(business_dates_to_get_data_for)
@@ -67,7 +66,7 @@ class Window:
                 return self.repository.all_dates[idx + n]
 
         print("The window start date was not in the list of all dates.")
-        print("Ensure backtest is started with a day that is in the datset.")
+        print("Ensure backtest is started with a day that is in the dataset.")
 
     def get_data(self,
                  tickers: Optional[List[Tuple[Tickers]]] = None,

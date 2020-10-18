@@ -11,9 +11,9 @@ class Position:
                  new_pos: PositionType = PositionType.NOT_INVESTED,
                  old_pos: PositionType = PositionType.NOT_INVESTED,
                  weight2=0,
+                 weight1=0,
                  init_date=None,
                  init_z=None,
-                 weight1=0,
                  closingtype=None
                  ):
         self.asset1: Tickers = ticker1
@@ -54,11 +54,6 @@ class Position:
             self.current_value = value
         self.pos_hist.append([window.window_end, self.current_value, self.pnl, self.simple_return])
 
-    def rebalance_pos(self, new_weights, rebalance_value):
-        self.weight1 = new_weights[0]
-        self.weight2 = new_weights[1]
-        self.pnl -= self.commission
-        self.current_value += rebalance_value
 
     def close_trade(self, value, window):
         self.pnl += value - self.current_value - self.commission
