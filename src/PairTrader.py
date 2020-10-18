@@ -27,7 +27,7 @@ class PairTrader:
                  hurst_exp_threshold: float = 0.15,
                  entry_z: float = 1.5,
                  emergency_delta_z: float = 3,
-                 exit_z: float = 0.5):
+                 exit_delta_z: float = 0.5):
         # If end_date is None, run for the entirety of the dataset
         # Window is the lookback period (from t=window_length to t=0 (today) over which we analyse data
         # to inform us on trades to make on t=0 (today).
@@ -42,7 +42,7 @@ class PairTrader:
         self.hurst_exp_threshold: float = hurst_exp_threshold
         self.entry_z: float = entry_z
         self.emergency_delta_z: float = emergency_delta_z
-        self.exit_z: float = exit_z
+        self.exit_delta_z: float = exit_delta_z
 
         # Last SNP date, hard coded for now...
         self.backtest_end = date(year=2019, month=12, day=31) if backtest_end is None else backtest_end
@@ -61,12 +61,12 @@ class PairTrader:
                                          self.adf_confidence_level,
                                          self.max_mean_rev_time,
                                          self.entry_z,
-                                         self.exit_z,
+                                         self.exit_delta_z,
                                          previous_cointegrated_pairs=[])
 
         self.filters = Filters()
         self.portfolio: Portfolio = Portfolio(100_000, self.current_window)
-        self.signalgenerator = SignalGenerator(self.portfolio, entry_z, exit_z,
+        self.signalgenerator = SignalGenerator(self.portfolio, entry_z, exit_delta_z,
                                              emergency_delta_z, max_active_pairs)
 
     ######################################
@@ -143,13 +143,13 @@ if __name__ == '__main__':
         target_number_of_coint_pairs=100,
         clust_and_coint_frequency_per_window=8,
         max_active_pairs=8,  # how many pairs (positions) we allow ourselves to have open at any one time
-        hurst_exp_threshold=0.15,
+        hurst_exp_threshold=0.2,
         backtest_end=date(2019, 12, 31),
         adf_confidence_level=AdfPrecisions.ONE_PCT,
         max_mean_rev_time=15,  # we don't want any pairs that mean-revert slower than this (number larger)
         entry_z=2.0,  # how many stds away from mean the residual is, our entry signal
-        exit_z=1.0,  # when to close, in units of std
-        emergency_delta_z=2.0  # where |emergency_z| = |entry_z + emergency_delta_z|
+        exit_delta_z=1.0,  # when to close, in units of std
+        emergency_delta_z=1.5  # where |emergency_z| = |entry_z + emergency_delta_z|
         # when to exit in an emergency, as each stock in the pair is deviating further from the other
     ).trade()
 
