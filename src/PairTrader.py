@@ -19,15 +19,16 @@ class PairTrader:
                  backtest_end: Optional[date] = None,
                  target_number_of_coint_pairs: int = 100,
                  max_active_pairs: int = 10,
-                 clust_and_coint_frequency_per_window = 8,
+                 clust_and_coint_frequency_per_window=8,
                  window_length: timedelta = timedelta(days=120),
                  trading_freq: timedelta = timedelta(days=1),
                  adf_confidence_level: AdfPrecisions = AdfPrecisions.ONE_PCT,
-                 max_mean_rev_time: int = 15,
+                 max_mean_rev_time: int = 30,
                  hurst_exp_threshold: float = 0.15,
-                 entry_z: float = 1.5,
-                 emergency_delta_z: float = 3,
-                 exit_z: float = 0.5):
+                 entry_z_lower_bound: float = 2,
+                 entry_z_upper_bound: float = 2.8,
+                 emergency_delta_z: float = 2,
+                 exit_z: float = 1):
         # If end_date is None, run for the entirety of the dataset
         # Window is the lookback period (from t=window_length to t=0 (today) over which we analyse data
         # to inform us on trades to make on t=0 (today).
@@ -40,7 +41,8 @@ class PairTrader:
         self.adf_confidence_level: AdfPrecisions = adf_confidence_level  # e.g. "5%" or "1%"
         self.max_mean_rev_time: int = max_mean_rev_time
         self.hurst_exp_threshold: float = hurst_exp_threshold
-        self.entry_z: float = entry_z
+        self.entry_z_lower_bound: float = entry_z_lower_bound
+        self.entry_z_upper_bound: float = entry_z_upper_bound
         self.emergency_delta_z: float = emergency_delta_z
         self.exit_z: float = exit_z
 
@@ -60,13 +62,14 @@ class PairTrader:
                                          target_number_of_coint_pairs,
                                          self.adf_confidence_level,
                                          self.max_mean_rev_time,
-                                         self.entry_z,
+                                         self.entry_z_lower_bound,
                                          self.exit_z,
                                          previous_cointegrated_pairs=[])
 
         self.filters = Filters()
         self.portfolio: Portfolio = Portfolio(100_000, self.current_window)
-        self.signalgenerator = SignalGenerator(self.portfolio, entry_z, exit_z,
+        self.signalgenerator = SignalGenerator(self.portfolio, entry_z_lower_bound,
+                                               entry_z_upper_bound, exit_z,
                                              emergency_delta_z, max_active_pairs)
 
     ######################################
@@ -92,6 +95,7 @@ class PairTrader:
                     cointegrated_pairs = self.cointegrator.generate_pairs(clusters,
                                                                           self.hurst_exp_threshold,
                                                                           self.current_window)
+                    self.portfolio.coint_wdw_already_closed_positions = []
 
                 # use already-cointegrated pairs if the bool value is False
                 else:
@@ -140,16 +144,17 @@ if __name__ == '__main__':
         backtest_start=date(2008, 1, 2),  # must be a trading day
         window_length=timedelta(days=120),
         trading_freq=timedelta(days=1),
-        target_number_of_coint_pairs=100,
-        clust_and_coint_frequency_per_window=8,
+        target_number_of_coint_pairs=50,
+        clust_and_coint_frequency_per_window=4,
         max_active_pairs=8,  # how many pairs (positions) we allow ourselves to have open at any one time
         hurst_exp_threshold=0.15,
         backtest_end=date(2019, 12, 31),
         adf_confidence_level=AdfPrecisions.ONE_PCT,
         max_mean_rev_time=15,  # we don't want any pairs that mean-revert slower than this (number larger)
-        entry_z=2.0,  # how many stds away from mean the residual is, our entry signal
-        exit_z=1.0,  # when to close, in units of std
-        emergency_delta_z=2.0  # where |emergency_z| = |entry_z + emergency_delta_z|
+        entry_z_lower_bound=2.0,  # how many stds away from mean the residual is, our entry signal
+        entry_z_upper_bound=3.0,
+        exit_z=0.5,  # when to close, in units of std
+        emergency_delta_z=1.5  # where |emergency_z| = |entry_z_lower_bound + emergency_delta_z|
         # when to exit in an emergency, as each stock in the pair is deviating further from the other
     ).trade()
 

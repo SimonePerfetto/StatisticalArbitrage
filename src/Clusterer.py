@@ -1,11 +1,11 @@
 import numpy as np
 import pandas as pd
-
-pd.options.display.max_columns = None
-pd.options.display.max_rows = None
 from sklearn.cluster import DBSCAN
 from src.util.Features import Features
 from datetime import date
+
+pd.options.display.max_columns = None
+pd.options.display.max_rows = None
 
 
 class Clusterer:

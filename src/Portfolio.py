@@ -1,15 +1,12 @@
 from datetime import datetime, date, timedelta
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 import yfinance as yf
 from pandas import DataFrame, to_datetime
-from typing import List
 from src.Performance import get_performance_stats
 from src.Position import Position
 from src.Window import Window
 from src.util.Features import Features, PositionType
-from src.Cointegrator import CointegratedPair
 
 
 class Portfolio:
@@ -23,6 +20,7 @@ class Portfolio:
         self.init_cash = cash
         self.cur_cash = cash
         self.cur_positions = list()
+        self.coint_wdw_already_closed_positions = list()
         self.hist_positions = list()
         self.total_capital = [cash]
         self.active_port_value = float(0)
@@ -55,7 +53,8 @@ class Portfolio:
                                                  features=[Features.CLOSE])
         # notional reference amount for each pair. Actual positions are scaled accordingly with respect to
         # maximum weight as per below formula
-        pair_dedicated_cash = self.init_cash * self.single_pair_loading / max(abs(position.weight1), abs(position.weight2))
+        pair_dedicated_cash = self.init_cash * self.single_pair_loading / max(abs(position.weight1),
+                                                                              abs(position.weight2))
         position.quantity1 = int(pair_dedicated_cash * position.weight1 / cur_price.iloc[-1, 0])
         position.quantity2 = int(pair_dedicated_cash * position.weight2 / cur_price.iloc[-1, 1])
         asset1_value = cur_price.iloc[-1, 0] * position.quantity1
@@ -89,6 +88,7 @@ class Portfolio:
             print(f"{position.closingtype} threshold is passed for active pair {position.asset1}, "
                   f"{position.asset2}. Closing position...")
             self.cur_positions.remove(position)
+            self.coint_wdw_already_closed_positions.append(position)
 
             asset1_value = cur_price.iloc[-1, 0] * position.quantity1
             asset2_value = cur_price.iloc[-1, 1] * position.quantity2
@@ -135,7 +135,7 @@ class Portfolio:
             if position.new_pos is PositionType.NOT_INVESTED:
                 self.close_position(position)
             else:
-                 self.open_position(position)
+                self.open_position(position)
 
     def get_current_positions(self):
         return self.cur_positions
