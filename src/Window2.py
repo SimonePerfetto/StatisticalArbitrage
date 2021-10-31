@@ -35,7 +35,7 @@ class Window2:
         all_avail_dates = pd.to_datetime(all_avail_dates.Date, dayfirst=True).dt.date
         return all_avail_dates
 
-    def add_date(self, dt: date, n_days: int):
+    def add_date(self, dt: date, n_days: int) -> date:
         start_dt_idx = self.all_dates[self.all_dates == dt].index[0]
         target_dt_idx = start_dt_idx + n_days
         return self.all_dates[target_dt_idx]
@@ -46,7 +46,6 @@ class Window2:
         self.trade_window_start_date = self.add_date(self.coint_window_end_date, 1)
         self.trade_window_end_date = self.add_date(self.trade_window_start_date, self.trade_window_length - 1)
         self.no_new_trades_from_date = self.add_date(self.trade_window_end_date, -self.no_new_trades_days)
-
 
     def update_key_dates(self) -> None:
         days_left = (self.backtest_end_date - self.add_date(self.trade_window_end_date, 1)).days
@@ -59,15 +58,13 @@ class Window2:
         else:
             self.trade_window_end_date = self.backtest_end_date
             self.no_new_trades_from_date = self.add_date(self.trade_window_end_date, -self.no_new_trades_days)
-            is_new_coint_needed = True
-
 
     def get_today(self) -> date:
         return self.trade_window_start_date
 
     def get_backtest_end_date(self) -> date:
-        return datetime(2010,7,16).date()
-        #return self.all_dates.iloc[-1]
+        #return datetime(2010,7,16).date()
+        return self.all_dates.iloc[-1]
 
     def go_to_next_day(self, today) -> date:
         return self.add_date(today, 1)

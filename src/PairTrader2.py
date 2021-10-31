@@ -36,17 +36,17 @@ class PairTrader2:
             cointpair.update_signal(self.today, self.data_repository.window.no_new_trades_from_date,
                                     self.data_repository.window.trade_window_end_date)
 
-    def rebalance_portfolio(self):
+    def rebalance_portfolio(self) -> None:
         pass
 
 
-    def init(self):
+    def init(self) -> None:
         self.coint_pairs = self.get_coint_pairs()
         self.portfolio = self.get_portfolio()
         self.today = self.data_repository.window.get_today()
 
 
-    def trade(self):
+    def trade(self) -> None:
         while self.today < self.final_backtest_date:
             print(f"Today is {self.today}.")
             if self.today > self.data_repository.window.trade_window_end_date:

@@ -10,7 +10,7 @@ from typing import List
 
 class Portfolio2:
 
-    def __init__(self, cash: float = 100_000.0):
+    def __init__(self, cash: float = 1_000_000.0):
         self.cur_cash: float = cash
         self.capital_invested: float = 0
         self.cur_positions: List[Position]
