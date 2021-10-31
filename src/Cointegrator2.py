@@ -39,17 +39,18 @@ class CointPair:
         self.previous_pair_signal = 0
         self.last_residual, self.last_roll_mean, self.last_roll_std = None, None, None
         self.last_lower_band, self.last_upper_band = None, None
-        self.current_pair_signal = None
+        self.current_pair_signal = 0
 
     def __repr__(self):
         return f"CointPair({self.stock_x.ticker}, {self.stock_y.ticker})"
 
     def update_signal(self, today, no_new_trades_from_date, trade_window_end_date):
+        self.previous_pair_signal = self.current_pair_signal
         self.last_residual, self.last_roll_mean, self.last_roll_std = self.__build_last_resid_mean_std(today)
         self.last_lower_band, self.last_upper_band = self.__build_last_upper_lower_bound()
         self.__update_coint_pair_series(today)
         self.current_pair_signal = self.__get_current_pair_signal(today, no_new_trades_from_date, trade_window_end_date)
-        self.previous_pair_signal = self.current_pair_signal
+
 
     def __build_last_resid_mean_std(self, today):
         last_residual = self.__compute_last_residual(today)
@@ -69,10 +70,7 @@ class CointPair:
         self.__update_series(self.lower_band, self.last_lower_band, today)
 
     def __compute_last_residual(self, today):
-        try:
-            last_price_y = self.stock_y.window_prices[today.strftime('%Y-%m-%d')]
-        except:
-            print("ccc")
+        last_price_y = self.stock_y.window_prices[today.strftime('%Y-%m-%d')]
         last_price_x = self.stock_x.window_prices[today.strftime('%Y-%m-%d')]
         last_residual = last_price_y - self.hedge_ratio * last_price_x
         return last_residual
@@ -120,7 +118,6 @@ class Cointegrator2:
     def __init__(self, repository: DataRepository2):
         self.repository: DataRepository2 = repository
         #self.target_number_of_coint_pairs: int = target_number_of_coint_pairs
-        self.adf_confidence_level: float = 0.01
         self.cointegrated_pairs =  self.get_cointegrated_pairs()
 
 
@@ -145,8 +142,8 @@ class Cointegrator2:
         return adf_test_statistic < adf_critical_value
 
     def cointegrate(self, stock_x: Stock, stock_y: Stock):
-        stock_x_coint_window_prices = stock_x.window_prices[:self.repository.coint_window_end_date]
-        stock_y_coint_window_prices = stock_y.window_prices[:self.repository.coint_window_end_date]
+        stock_x_coint_window_prices = stock_x.window_prices[:self.repository.window.coint_window_end_date]
+        stock_y_coint_window_prices = stock_y.window_prices[:self.repository.window.coint_window_end_date]
         hedge_ratio, residuals = self.__get_hedge_ratio_and_residuals(stock_x_coint_window_prices, stock_y_coint_window_prices)
         if self.__coint_check(residuals):
             return hedge_ratio, residuals
