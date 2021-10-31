@@ -2,11 +2,6 @@ from enum import Enum, unique
 from copy import copy, deepcopy
 
 
-@unique
-class Invested(Enum):
-    LONG = 'LONG'
-    SHORT = 'SHORT'
-
 
 @unique
 class Features(Enum):

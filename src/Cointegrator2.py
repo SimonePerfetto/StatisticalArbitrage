@@ -1,0 +1,183 @@
+import itertools
+from enum import Enum, unique
+import random
+from typing import Dict, Tuple, List, Optional
+import numpy as np
+from numpy import array
+import pandas as pd
+from sklearn.linear_model import LinearRegression
+from statsmodels.tsa.api import adfuller
+from src.DataRepository2 import DataRepository2
+from src.Window import Window
+from src.util.Features import Features
+from src.util.Tickers import Tickers
+from src.Position import Position
+import cufflinks as cf
+import statsmodels.api as sm
+from src.OnlineRollingStats import OnlineRollingStats
+
+class Stock:
+    def __init__(self, ticker: str, repository: DataRepository2):
+        self.ticker = ticker
+        self.window_prices = self.get_window_prices(repository.current_price_data)
+
+    def __repr__(self):
+        return f'{self.ticker}'
+
+    def get_window_prices(self, current_price_data) -> pd.Series:
+        return current_price_data[self.ticker]
+
+class CointPair:
+    def __init__(self, stock_x: Stock, stock_y: Stock, cointegration_result: List):
+        self.stock_x = stock_x
+        self.stock_y = stock_y
+        self.hedge_ratio, self.residuals = cointegration_result
+        self.residuals_mavg = self.residuals.rolling(20).mean()
+        self.residuals_mstdv = self.residuals.rolling(20).std()
+        self.upper_band = self.residuals_mavg + 0.5 * self.residuals_mstdv
+        self.lower_band = self.residuals_mavg - 0.5 * self.residuals_mstdv
+        self.previous_pair_signal = 0
+        self.last_residual, self.last_roll_mean, self.last_roll_std = None, None, None
+        self.last_lower_band, self.last_upper_band = None, None
+        self.current_pair_signal = None
+
+    def __repr__(self):
+        return f"CointPair({self.stock_x.ticker}, {self.stock_y.ticker})"
+
+    def update_signal(self, today, no_new_trades_from_date, trade_window_end_date):
+        self.last_residual, self.last_roll_mean, self.last_roll_std = self.__build_last_resid_mean_std(today)
+        self.last_lower_band, self.last_upper_band = self.__build_last_upper_lower_bound()
+        self.__update_coint_pair_series(today)
+        self.current_pair_signal = self.__get_current_pair_signal(today, no_new_trades_from_date, trade_window_end_date)
+        self.previous_pair_signal = self.current_pair_signal
+
+    def __build_last_resid_mean_std(self, today):
+        last_residual = self.__compute_last_residual(today)
+        last_roll_mean, last_roll_std = self.__compute_last_mean_and_std(last_residual)
+        return last_residual, last_roll_mean, last_roll_std
+
+    def __build_last_upper_lower_bound(self):
+        last_upper = self.last_roll_mean + 0.5 * self.last_roll_std
+        last_lower = self.last_roll_mean - 0.5 * self.last_roll_std
+        return last_lower, last_upper
+
+    def __update_coint_pair_series(self, today):
+        self.__update_series(self.residuals, self.last_residual, today)
+        self.__update_series(self.residuals_mavg, self.last_roll_mean, today)
+        self.__update_series(self.residuals_mstdv, self.last_roll_std, today)
+        self.__update_series(self.upper_band, self.last_upper_band, today)
+        self.__update_series(self.lower_band, self.last_lower_band, today)
+
+    def __compute_last_residual(self, today):
+        try:
+            last_price_y = self.stock_y.window_prices[today.strftime('%Y-%m-%d')]
+        except:
+            print("ccc")
+        last_price_x = self.stock_x.window_prices[today.strftime('%Y-%m-%d')]
+        last_residual = last_price_y - self.hedge_ratio * last_price_x
+        return last_residual
+
+    def __compute_last_mean_and_std(self, last_residual):
+        mean_old = self.residuals_mavg.values[-1]
+        std_old = self.residuals_mstdv.values[-1]
+        first_residual = self.residuals.values[-20]
+        online_roll = OnlineRollingStats(window_size=20, mean=mean_old, stdv=std_old)
+        mean_new, std_new = online_roll.update(new=last_residual, old=first_residual)
+        return mean_new, std_new
+
+    @staticmethod
+    def __update_series(series, last_item, today):
+        series.loc[pd.to_datetime(today)] = last_item
+
+    def __get_current_pair_signal(self, today, no_new_trades_from_date, trade_window_end_date):
+        if self.previous_pair_signal == 0 and today < no_new_trades_from_date:
+            current_signal = self.__evaluate_trade_trigger()
+        elif self.previous_pair_signal == 0 and today >= no_new_trades_from_date:
+            current_signal = 0
+        elif self.previous_pair_signal == 1 and today < trade_window_end_date:
+            current_signal = self.__evaluate_exiting_long_position()
+        elif self.previous_pair_signal == -1 and today < trade_window_end_date:
+            current_signal = self.__evaluate_exiting_short_position()
+        else:
+            current_signal = 0
+        return current_signal
+
+    def __evaluate_trade_trigger(self):
+        if self.last_residual > self.last_upper_band: return -1
+        elif self.last_residual < self.last_lower_band: return 1
+        else: return 0
+
+    def __evaluate_exiting_long_position(self):
+        if self.last_residual > self.last_roll_mean: return 0
+        else: return 1
+
+    def __evaluate_exiting_short_position(self):
+        if self.last_residual < self.last_roll_mean: return 0
+        else: return -1
+
+class Cointegrator2:
+
+    def __init__(self, repository: DataRepository2):
+        self.repository: DataRepository2 = repository
+        #self.target_number_of_coint_pairs: int = target_number_of_coint_pairs
+        self.adf_confidence_level: float = 0.01
+        self.cointegrated_pairs =  self.get_cointegrated_pairs()
+
+
+    @staticmethod
+    def __get_hedge_ratio_and_residuals(x: pd.Series, y: pd.Series) -> Tuple:
+        reg = sm.OLS(y, x).fit()
+        hedge_ratio = reg.params[0]
+        residuals = y - hedge_ratio * x
+        return hedge_ratio, residuals
+
+    @staticmethod
+    def __coint_check(residuals: pd.Series) -> bool:
+        '''
+        critical values are in the following dictionary form:
+            {'1%': -3.4304385694773387,
+             '5%': -2.8615791461685034,
+             '10%': -2.566790836162312}
+        '''
+        adf_results = adfuller(residuals)
+        adf_test_statistic = adf_results[0]
+        adf_critical_value = adf_results[4]['1%']
+        return adf_test_statistic < adf_critical_value
+
+    def cointegrate(self, stock_x: Stock, stock_y: Stock):
+        stock_x_coint_window_prices = stock_x.window_prices[:self.repository.coint_window_end_date]
+        stock_y_coint_window_prices = stock_y.window_prices[:self.repository.coint_window_end_date]
+        hedge_ratio, residuals = self.__get_hedge_ratio_and_residuals(stock_x_coint_window_prices, stock_y_coint_window_prices)
+        if self.__coint_check(residuals):
+            return hedge_ratio, residuals
+        return
+
+    def get_cointegrated_pairs(self) -> List[CointPair]:
+        stock_obj_dict, cointpair_stocks, cointpair_list = {}, [], []
+        random.seed(42)
+        shuffled_allowed_couples = random.sample(self.repository.allowed_couples, k=len(self.repository.allowed_couples))
+        for tick_x, tick_y in shuffled_allowed_couples:
+            if tick_x in cointpair_stocks or tick_y in cointpair_stocks: continue
+            if (tick_x, tick_y) == ('GOOG', 'GOOGL') or (tick_x, tick_y) == ('GOOGL', 'GOOG'): continue
+            if (tick_x, tick_y) == ('NWS', 'NWSA') or (tick_x, tick_y) == ('NWSA', 'NWS'): continue
+            if tick_x not in stock_obj_dict: stock_obj_dict[tick_x] = Stock(tick_x, self.repository)
+            if tick_y not in stock_obj_dict: stock_obj_dict[tick_y] = Stock(tick_y, self.repository)
+            stock_x, stock_y = stock_obj_dict[tick_x], stock_obj_dict[tick_y]
+            cointegration_result = self.cointegrate(stock_x, stock_y)
+            if cointegration_result is not None:
+                cointpair = CointPair(stock_x, stock_y, cointegration_result)
+                cointpair_stocks += [tick_x, tick_y]
+                cointpair_list.append(cointpair)
+        return cointpair_list
+
+
+
+
+
+
+
+
+
+
+
+

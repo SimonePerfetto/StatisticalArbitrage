@@ -34,6 +34,7 @@ class DataRepository:
         self.all_dates = self.__load_dates()
         self.fundamental_data = None
 
+
     def get(self,
             snp_data: Universes,
             trading_dates: pd.Series):
@@ -65,6 +66,9 @@ class DataRepository:
     def __load_dates(self) -> List[date]:
         dates = pd.read_csv(Universes.SNP.value, index_col=0, usecols=[0],
                             parse_dates=True, dayfirst=True)
+        datadates = pd.Series(dates.index)
+        bdates = pd.Series(pd.bdate_range(dates.index[0], dates.index[-1]))
+        bdates[~bdates.isin(datadates)]
         dates["dates_col"] = dates.index
         return dates["dates_col"]
 

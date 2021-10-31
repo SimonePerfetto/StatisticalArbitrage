@@ -11,7 +11,7 @@ from src.Cointegrator import CointegratedPair
 
 class Filters:
 
-    def __init__(self, threshold_sigma = 1):
+    def __init__(self, threshold_sigma=1):
         self.current_window = None
         # historic data from which we calculate the history
         # volumes so we know what constitutes a shock)
@@ -89,7 +89,7 @@ class Filters:
 
 if __name__ == '__main__':
     win = Window(window_start=date(2008, 1, 2),
-                 trading_win_len=timedelta(days=90),
+                 win_len=timedelta(days=90),
                  repository=DataRepository())
 
     test_input = [

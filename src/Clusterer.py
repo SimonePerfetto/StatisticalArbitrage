@@ -11,24 +11,21 @@ pd.options.display.max_rows = None
 class Clusterer:
 
     def __init__(self, clusters=None):
-        # To store the clusters of tickers we found the previous day. On day 1 this will be None.
-        # Same as return type of DBscan Method
-        # Type:
-        #    return a dict {int: list of ticker couples} like the following:
-        # {
-        # 1: [('AAPL', 'GOOG'),('MSFT', 'GOOG'),('MSFT', 'AAPL')],
-        # 2: [('AMGN', 'MMM')]
+        """
+        return a dict {int: list of ticker couples} like the following:
+         {
+         1: [('AAPL', 'GOOG'),('MSFT', 'GOOG'),('MSFT', 'AAPL')],
+         2: [('AMGN', 'MMM')] }
         # }
-        #    key: cluster number Cx, x=1,2,...,n
+        """
 
         self.cluster_history = []
 
-    def dbscan(self, today: date, min_samples, eps=None, window=None):
+    def dbscan(self, min_samples, eps=None, window=None):
         self.window = window
         clustering_features = [Features.INTRADAY_VOL, Features.VOLUME]
         snp_to_cluster_on = window.get_data(None, clustering_features)
-        # to now we have a single number per column,
-        # (averaging over time dim) so can now compare cross-sectionally
+        # to now we have a single number per column, (averaging over time dim) so can now compare cross-sectionally
 
         mean_of_features_over_time = snp_to_cluster_on.mean(axis=0)
 
@@ -60,13 +57,3 @@ class Clusterer:
             clusters[cluster_num] = tickers_in_this_cluster.values
         return clusters
 
-# if __name__ == '__main__':
-#
-#     X = pd.concat([normed_volume_ranks, normed_intraday_vol_ranks], axis=1)
-#
-#     plt.figure()
-#     plt.scatter(x=X.loc[:, 0], y=X.loc[:, 1])
-#     plt.xlabel(str(X.columns[0]))
-#     plt.ylabel(str(X.columns[1]))
-#     plt.tight_layout()
-#     plt.show()

@@ -203,3 +203,6 @@ class Portfolio:
         plt.savefig("{time.time()}_total_capital.png", dpi=200)
 
         plt.show()
+
+
+

@@ -87,8 +87,7 @@ class PairTrader:
                 # if such bool is true, then we cluster & cointegrate using current window
                 if is_new_clustering_and_cointegration_time:
                     print("Clustering...")
-                    clusters = self.clusterer.dbscan(self.today, eps=0.02,
-                                                     min_samples=4, window=self.current_window)
+                    clusters = self.clusterer.dbscan(eps=0.02, min_samples=4, window=self.current_window)
                     print("Cointegrating...")
                     cointegrated_pairs = self.cointegrator.generate_pairs(clusters,
                                                                           self.hurst_exp_threshold,
@@ -127,7 +126,6 @@ class PairTrader:
 
 
 if __name__ == '__main__':
-
     start_time = time.time()
     logging.basicConfig(filename='log' + datetime.now().strftime("%Y%M%d%H%M%S"),
                         filemode='a',
@@ -147,11 +145,11 @@ if __name__ == '__main__':
         hurst_exp_threshold=0.15,
         backtest_end=date(2019, 12, 31),
         adf_confidence_level=AdfPrecisions.ONE_PCT,
-        max_mean_rev_time=15,  # we don't want any pairs that mean-revert in more days than this
+        max_mean_rev_time=15,  # no pair should mean-revert in more days than this
         entry_z_lower_bound=2.0,  # how many stds away from mean the residual is, our entry signal lowerbound
-        entry_z_upper_bound=3.0,  # entry signal upperbound
-        exit_delta_z=1.5,  # when to close, in units of std
-        emergency_delta_z=1.0  # where |emergency_z| = |entry_z_upper_bound + emergency_delta_z|
+        entry_z_upper_bound=2.5,  # entry signal upperbound
+        exit_delta_z=1.0,  # when to close, in units of std
+        emergency_delta_z=2.0  # where |emergency_z| = |entry_z_upper_bound + emergency_delta_z|
         # when to exit in an emergency, as each stock in the pair is deviating further from the other
     ).trade()
 

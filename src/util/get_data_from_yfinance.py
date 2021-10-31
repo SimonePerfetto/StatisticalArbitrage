@@ -148,4 +148,4 @@ if __name__ == '__main__':
 			df_temp[ticker.ticker + ' dividend yield'] = dividend / size
 			df_temp[ticker.ticker + ' leverage'] = debt / equity
 			df = df.join(df_temp, how = 'outer')
-		df.to_csv('/Users/Simon-CWG/Documents/SIF_git/git/src/util/fundamental_snp.csv')
+		df.to_csv('fundamental_snp.csv')

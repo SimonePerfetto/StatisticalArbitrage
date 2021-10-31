@@ -111,7 +111,7 @@ class SignalGenerator:
             is_passed_time_limit = decision_day > (position.init_date + timedelta(self.time_stop_loss))
             if is_passed_time_limit:
                 position.change_position_type(PositionType.NOT_INVESTED)
-                position.closingtype = "emergency"
+                position.closingtype = "time limit passed"
                 trades_to_execute_list.append(position)
                 self.time_stop_loss_count += 1
                 self.open_count_current -= 1
