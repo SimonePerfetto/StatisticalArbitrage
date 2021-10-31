@@ -29,7 +29,8 @@ class Window2:
         self.no_new_trades_from_date = None
         self.__define_key_dates()
 
-    def __load_all_available_dates(self) -> pd.DataFrame:
+    @staticmethod
+    def __load_all_available_dates() -> pd.DataFrame:
         all_avail_dates = pd.read_csv(Path(f"../data/closes.csv"), usecols=[0],
                                       parse_dates=True, dayfirst=True)
         all_avail_dates = pd.to_datetime(all_avail_dates.Date, dayfirst=True).dt.date
