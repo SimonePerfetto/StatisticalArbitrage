@@ -1,7 +1,7 @@
 import itertools
 from enum import Enum, unique
 import random
-from typing import Dict, Tuple, List, Optional
+from typing import Dict, Tuple, List, Optional, Union
 import numpy as np
 from numpy import array
 import pandas as pd
@@ -49,7 +49,8 @@ class CointPair:
         self.last_residual, self.last_roll_mean, self.last_roll_std = self.__build_last_resid_mean_std(today)
         self.last_lower_band, self.last_upper_band = self.__build_last_upper_lower_bound()
         self.__update_coint_pair_series(today)
-        self.current_pair_signal = self.__get_current_pair_signal(today, no_new_trades_from_date, trade_window_end_date)
+        self.current_pair_signal = self.__get_current_pair_signal(today, no_new_trades_from_date,
+                                                                  trade_window_end_date)
 
 
     def __build_last_resid_mean_std(self, today) -> Tuple:
@@ -94,8 +95,10 @@ class CointPair:
             current_signal = 0
         elif self.previous_pair_signal == 1 and today < trade_window_end_date:
             current_signal = self.__evaluate_exiting_long_position()
+            if current_signal == -1: current_signal = 0 #dont want to jump from long to short in one step
         elif self.previous_pair_signal == -1 and today < trade_window_end_date:
             current_signal = self.__evaluate_exiting_short_position()
+            if current_signal == 1: current_signal = 0 #dont want to jump from short to long in one step
         else:
             current_signal = 0
         return current_signal
@@ -141,7 +144,7 @@ class Cointegrator2:
         adf_critical_value = adf_results[4]['1%']
         return adf_test_statistic < adf_critical_value
 
-    def cointegrate(self, stock_x: Stock, stock_y: Stock) -> Optional[Tuple, None]:
+    def cointegrate(self, stock_x: Stock, stock_y: Stock) -> Union[Tuple, None]:
         stock_x_coint_window_prices = stock_x.window_prices[:self.repository.window.coint_window_end_date]
         stock_y_coint_window_prices = stock_y.window_prices[:self.repository.window.coint_window_end_date]
         hedge_ratio, residuals = self.__get_hedge_ratio_and_residuals(stock_x_coint_window_prices,
