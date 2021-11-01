@@ -1,23 +1,87 @@
 from datetime import datetime, date, timedelta
-import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
-import yfinance as yf
 from pandas import DataFrame, to_datetime
 from src.Performance import get_performance_stats
 from src.Position import Position
 from src.util.Features import Features, PositionType
-from typing import List
+from typing import List, Tuple
+from src.Cointegrator2 import CointPair
+
+
+class PairHolding:
+    def __init__(self, ticker_l: str, ticker_s: str, pl: float, ps: float, nl: float, ns: float):
+        self.ticker_l: str = ticker_l
+        self.ticker_s: str = ticker_s
+        self.pl: float = pl
+        self.ps: float = ps
+        self.nl: float = nl
+        self.ns: float = ns
+
+    def __repr__(self):
+        return f"PairHolding[Long({self.ticker_l}), Short({self.ticker_s})]"
+
 
 class Portfolio2:
 
     def __init__(self, cash: float = 1_000_000.0):
         self.cur_cash: float = cash
         self.capital_invested: float = 0
-        self.cur_positions: List[Position]
+        self.cur_holding = None
         self.realised_pnl: float = 0
         self.outstanding_pnl: float = 0
         self.t_cost: float = 0.0005
-        #self.timestamp = datetime.now().strftime("%Y%m%d%H%M")
+
+    def rebalance(self, coint_pairs, today):
+        # this one want to change the holdings (long/short). Maybe useful to create holding object.
+        # maybe call here something like __examine single pair
+        for coint_pair in coint_pairs:
+            trade_action = self.evaluate_trade_action(coint_pair)
+
+
+    def evaluate_trade_action(self, coint_pair):
+        prev_sign, curr_sign = coint_pair.previous_pair_signal, coint_pair.current_pair_signal
+        if curr_sign == 1 and prev_sign == 0: return "OpenLong"
+        elif curr_sign == -1 and prev_sign == 0: return "OpenShort"
+        elif curr_sign == 0 and prev_sign == -1: return "CloseShort"
+        elif curr_sign == 0 and prev_sign == 1: return "CloseLong"
+        elif curr_sign == 0 and prev_sign == 0: return "Pass"
+        else: return "Hold"
+
+    def make_trade_action(self, coint_pair, today):
+        if coint_pair.current_pair_signal == 1 and coint_pair.previous_pair_signal == 0:
+            # long pair means buy 1 unit of y sell hedgeratio units of x
+            hedge_ratio = coint_pair.hedge_ratio
+            px, py = self.__get_todays_price_x_y(coint_pair, today)
+            nx, ny = self.__units_finder(py, coint_pair.hedge_ratio)
+            ticker_x, ticker_y = self.__get_ticker_x_y(coint_pair)
+            pair_holding = PairHolding(ticker_y, ticker_x, py, px, ny, nx)
+            a=10
+
+    @staticmethod
+    def __get_todays_price_x_y(coint_pair: CointPair, today: date) -> Tuple:
+        px = coint_pair.stock_x.window_prices.loc[pd.to_datetime(today)]
+        py = coint_pair.stock_y.window_prices.loc[pd.to_datetime(today)]
+        return px, py
+
+    @staticmethod
+    def __get_ticker_x_y(coint_pair: CointPair) -> Tuple:
+        return coint_pair.stock_x.ticker, coint_pair.stock_y.ticker
+
+    @staticmethod
+    def __units_finder(py, hedge_ratio, min_notional=48_000, max_notional=52_000):
+        notionals = np.linspace(min_notional, max_notional, 101)
+        errors = []
+        for notional in notionals:
+            ny = round(notional/py)
+            nx = round(ny * hedge_ratio)
+            abs_err = abs(nx/ny - hedge_ratio)
+            errors.append(abs_err)
+        idx_min_error = np.argmin(errors)
+        notional_w_min_err = notionals[idx_min_error]
+        ny_star = round(notional_w_min_err / py)
+        nx_star = round(ny_star * hedge_ratio)
+        return nx_star, ny_star
 
 
     def open_position(self, position: Position):
@@ -50,7 +114,6 @@ class Portfolio2:
         #           f'Quantity: {round(position.quantity2, 2)} Value: {round(asset2_value, 2)}')
         #     print(f'Cash balance: ${self.cur_cash}')
 
-    # noinspection PyTypeChecker
     def close_position(self, position: Position):
         pass
         # cur_price = self.current_window.get_data(tickers=[position.asset1, position.asset2],
