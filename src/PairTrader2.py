@@ -7,7 +7,6 @@ from src.Window2 import Window2
 from typing import  List
 
 class PairTrader2:
-    # cointegration check done only once every full window, then we trade on old info
     def __init__(self,
                  coint_window_length: int,
                  backtest_start_date: date,
@@ -36,15 +35,10 @@ class PairTrader2:
             cointpair.update_signal(self.today, self.data_repository.window.no_new_trades_from_date,
                                     self.data_repository.window.trade_window_end_date)
 
-    def rebalance_portfolio(self) -> None:
-        pass
-
-
     def init(self) -> None:
         self.coint_pairs = self.get_coint_pairs()
         self.portfolio = self.get_portfolio()
         self.today = self.data_repository.window.get_today()
-
 
     def trade(self) -> None:
         while self.today < self.final_backtest_date:
@@ -54,11 +48,9 @@ class PairTrader2:
                 self.data_repository.update_data()
                 self.coint_pairs = self.get_coint_pairs()
             self.update_pair_signals()
-            self.rebalance_portfolio()
+            self.portfolio.rebalance(self.coint_pairs, self.today)
             self.today = self.data_repository.window.go_to_next_day(self.today)
 
-        pass
-    pass
 
 if __name__ == '__main__':
     pairtrader = PairTrader2(coint_window_length=60, backtest_start_date=date(2008, 1, 2),
