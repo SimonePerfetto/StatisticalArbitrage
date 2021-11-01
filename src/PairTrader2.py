@@ -19,7 +19,8 @@ class PairTrader2:
         self.coint_pairs = None
         self.portfolio = None
 
-    def get_data_repository(self, backtest_start_date, coint_window_length) -> DataRepository2:
+    @staticmethod
+    def get_data_repository(backtest_start_date, coint_window_length) -> DataRepository2:
         window = Window2(backtest_start_date, coint_window_length)
         return DataRepository2(window)
 
@@ -27,7 +28,8 @@ class PairTrader2:
         cointegrator = Cointegrator2(self.data_repository)
         return cointegrator.cointegrated_pairs
 
-    def get_portfolio(self) -> Portfolio2:
+    @staticmethod
+    def get_portfolio() -> Portfolio2:
         return Portfolio2()
 
     def update_pair_signals(self) -> None:
