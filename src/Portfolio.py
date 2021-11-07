@@ -11,7 +11,8 @@ class Holdingtype(Enum):
     Long = "Long"
     Short = "Short"
 
-
+#TODO: make distinct classes LongHolding, ShortHolding as inheriting from Holding and disintuishing characteristics
+# (eg invested capital for long vs. locked cash for short)
 class Holding:
     def __init__(self, ticker: str, price: float, units: int, holding_type: Holdingtype, transaction_fee: float):
         self.ticker: str = ticker
@@ -21,6 +22,10 @@ class Holding:
         self.transaction_fee: float = transaction_fee
         self.prev_holding_pnl: float = 0
         self.current_holding_pnl: float = 0
+        self.invested_capital: float = 0
+        self.posted_margin: float = 0
+        self.locked_cash: float = 0
+        self.adjust_capital_invested_or_locked()
         self.adjust_pnl_for_entry_transaction_costs()
 
     def update_holding_price_and_pnl(self, new_price: float, is_hold_being_liquidated: bool = False) -> None:
@@ -33,9 +38,18 @@ class Holding:
             self.current_holding_pnl -= self.units * new_price * self.transaction_fee
         self.price = new_price
 
-    def adjust_pnl_for_entry_transaction_costs(self):
+    def adjust_pnl_for_entry_transaction_costs(self) -> None:
         self.current_holding_pnl = - self.transaction_fee * (self.price * self.units)
         self.prev_holding_pnl = self.current_holding_pnl
+
+    def adjust_capital_invested_or_locked(self) -> None:
+        notional = self.price * self.units
+        if self.holding_type.value == "Long":
+            self.invested_capital = notional
+        else:
+            self.posted_margin = 0.5 * notional
+            self.locked_cash = 1.5 * notional
+
 
     def __repr__(self):
         return f"{self.holding_type.value}({self.ticker})"
@@ -47,6 +61,11 @@ class PairHolding:
         self.holding_short: Holding = holding_short
         self.pair_prev_holding_pnl: float = 0
         self.pair_current_holding_pnl: float = 0
+        self.invested_capital = holding_long.invested_capital
+        self.locked_cash = holding_short.locked_cash
+        self.posted_margin = holding_short.posted_margin
+        self.tot_committed_capital = self.invested_capital + self.posted_margin
+
 
     def compute_current_pair_holding_pnl(self):
         self.pair_prev_holding_pnl = self.pair_current_holding_pnl
@@ -61,8 +80,9 @@ class Portfolio:
 
     def __init__(self, max_active_pairs: int, cash: float = 1_000_000.0):
         self.max_active_pairs: int = max_active_pairs
-        self.cur_cash: float = cash
-        self.margin_locked_cash: float = 0
+        self.pf_cur_cash: float = cash
+        self.pf_locked_cash: float = 0
+        self.pf_committed_capital: float = 0
         self.outstanding_pnl_dict = {}
         self.realised_pnl: float = 0
         self.current_pnl: float = 0
@@ -74,9 +94,10 @@ class Portfolio:
         self.n_bad_trades: int = 0
 
     def __repr__(self):
-        #CurrCash: {self.cur_cash}, LockedCash: {self.margin_locked_cash},
-        return f"Portfolio(GoodTrades: {self.n_good_trades}, BadTrades: {self.n_bad_trades}," \
-               f" UnrealisedPnL: {round(self.current_pnl, 2)}, RealisedPnL: {round(self.realised_pnl,2)}, " \
+        #CurrCash: {self.pf_cur_cash}, CommCapital: {self.pf_committed_capital},
+        return f"Portfolio(CurrCash: {self.pf_cur_cash}, CommCapital: {self.pf_committed_capital}, " \
+               f"GoodTrades: {self.n_good_trades}, BadTrades: {self.n_bad_trades}, " \
+               f"UnrealisedPnL: {round(self.current_pnl, 2)}, RealisedPnL: {round(self.realised_pnl,2)}, " \
                f"TotPnL: {round(self.total_pnl,2)})"
 
     def rebalance(self, coint_pairs, today):
@@ -110,7 +131,9 @@ class Portfolio:
             if len(self.current_holdings) > self.max_active_pairs:
                 coint_pair.current_pair_signal = 0
                 return
+            #TODO: subtract transaction costs from cash rather than from pnl
             pair_holding = self.__get__new_pair_holding(coint_pair, today, trade_action)
+            self.__update_current_and_locked_cash_and_committed_capital(pair_holding)
             self.current_holdings[coint_pair] = pair_holding
             #coint_pair.plot_residuals_and_bb_bands()
 
@@ -130,11 +153,20 @@ class Portfolio:
                              self.current_holdings[coint_pair].pair_prev_holding_pnl)
 
     def __consolidate_pair_holding_pnl_for_closed_position(self, coint_pair: CointPair) -> None:
-        closing_pair_pnl = self.current_holdings[coint_pair].pair_current_holding_pnl
+        pair_holding = self.current_holdings[coint_pair]
+        closing_pair_pnl = pair_holding.pair_current_holding_pnl
         self.realised_pnl += closing_pair_pnl
         self.current_pnl -= closing_pair_pnl
+        self.pf_locked_cash -= pair_holding.locked_cash
+        self.pf_cur_cash += pair_holding.tot_committed_capital + closing_pair_pnl
+        self.pf_committed_capital -= pair_holding.tot_committed_capital
         if closing_pair_pnl > 0: self.n_good_trades += 1
         else: self.n_bad_trades += 1
+
+    def __update_current_and_locked_cash_and_committed_capital(self, pair_holding):
+        self.pf_cur_cash -= pair_holding.tot_committed_capital
+        self.pf_committed_capital += pair_holding.tot_committed_capital
+        self.pf_locked_cash += pair_holding.locked_cash
 
     def __get__new_pair_holding(self, coint_pair: CointPair, today: date, trade_action: str) -> PairHolding:
         hedge_ratio = coint_pair.hedge_ratio
