@@ -35,14 +35,14 @@ class PairTrader:
         for cointpair in self.coint_pairs:
             cointpair.update_signal(self.today, self.data_repository.window.no_new_trades_from_date,
                                     self.data_repository.window.trade_window_end_date)
-
+    #TODO: not implemented yet
     def compute_sharpe_ratio(self):
         rates = pd.read_csv(Path(f"../data/DTB3.csv"), parse_dates=["Date"], dayfirst=True).set_index("Date")
-        returns = pd.Series(self.total_pnl_dict).pct_change().dropna()
-        avg_y_return = returns.mean() * 252
-        std_y = np.std(returns) * 252 ** 0.5
-        avg_rf_return = rates.mean() * 360  # days-per-year convention for risk-free rate benchmark
-        print(f"Sharpe Ratio: {(avg_y_return - avg_rf_return)/std_y}")
+        #returns = pd.Series(self.total_pnl_dict).pct_change().iloc[2:]  # lazy, need to fix
+        #avg_y_return = returns.mean() * 252
+        #std_y = np.std(returns) * 252 ** 0.5
+        #avg_rf_return = rates.mean() * 360  # days-per-year convention for risk-free rate benchmark
+        #print(f"Sharpe Ratio: {(avg_y_return - avg_rf_return)/std_y}")
 
 
     def init(self) -> None:
@@ -56,7 +56,6 @@ class PairTrader:
                 self.data_repository.window.update_key_dates()
                 self.data_repository.update_data()
                 self.coint_pairs = self.get_coint_pairs()
-
             self.update_pair_signals()
             self.portfolio.rebalance(self.coint_pairs, self.today)
             print(f"{self.today}: {self.portfolio}")
@@ -65,7 +64,6 @@ class PairTrader:
 
         pd.Series(self.total_pnl_dict).plot()
         plt.show()
-        self.compute_sharpe_ratio()
 
 
 if __name__ == '__main__':
