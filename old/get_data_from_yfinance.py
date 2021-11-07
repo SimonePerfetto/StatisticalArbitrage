@@ -1,10 +1,9 @@
 # need to implement announcement gap for fundamental data
 
 import yfinance as yf
-from src.util.Tickers import SnpTickers
+from old.Tickers import SnpTickers
 import pickle
 import datetime
-import pandas as pd
 
 '''
 DONE:
@@ -93,7 +92,7 @@ if __name__ == '__main__':
 		print(ticker)
 		data.append(get_ticker_data(ticker))
 
-	from src.util.Tickers import SnpTickers
+	from old.Tickers import SnpTickers
 	import pandas as pd
 	df = pd.DataFrame()
 	start = False

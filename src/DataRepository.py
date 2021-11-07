@@ -1,19 +1,16 @@
 import itertools
-from datetime import date, timedelta, datetime
-from enum import Enum, unique
+from datetime import datetime
 from pathlib import Path
-from typing import Set, List, Dict, Tuple
+from typing import List, Dict
 import dask.dataframe as dd
-import numpy as np
 import pandas as pd
-from src.Window2 import Window2
-
+from src.Window import Window
 import yfinance as yf
 
 
 
-class DataRepository2:
-    def __init__(self, window: Window2):
+class DataRepository:
+    def __init__(self, window: Window):
         self.window = window
         self.snp_info = self.__get_company_data_from_yfinance()
         #self.__get_price_data_from_yfinance()
@@ -22,7 +19,7 @@ class DataRepository2:
         self.current_cluster_dict = self.__get_current_cluster_dict()
         self.allowed_couples = self.__get_allowed_couples()
 
-    def __get_company_data_from_yfinance(self) -> None:
+    def __get_company_data_from_yfinance(self) -> pd.DataFrame:
         wiki_table = pd.read_html('https://en.wikipedia.org/wiki/List_of_S%26P_500_companies')
         sp_info = wiki_table[0].loc[:, ["Symbol", "GICS Sub-Industry"]]
         sp_info.columns = ["ticker", "sector"]
@@ -43,7 +40,7 @@ class DataRepository2:
         close_dd = dd.read_csv(Path(f"../data/closes.csv"), parse_dates=["Date"], dayfirst=True).set_index("Date")
         return close_dd
 
-    def __get_current_price_data_from_dask_df(self):
+    def __get_current_price_data_from_dask_df(self) -> pd.DataFrame:
         start = self.window.coint_window_start_date
         end = self.window.trade_window_end_date
         snp_price_data = self.lazy_dask_price_data.loc[start:end].compute()
@@ -67,10 +64,10 @@ class DataRepository2:
                 couples += [couple for couple in itertools.combinations(ticker_list, 2)]
         return couples
 
-    def __update_price_data_and_cluster(self):
+    def __update_price_data_and_cluster(self) -> None:
         self.current_price_data = self.__get_current_price_data_from_dask_df()
         self.current_cluster_dict = self.__get_current_cluster_dict()
         self.allowed_couples = self.__get_allowed_couples()
 
-    def update_data(self):
+    def update_data(self) -> None:
         self.__update_price_data_and_cluster()

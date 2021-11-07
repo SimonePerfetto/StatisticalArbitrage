@@ -1,5 +1,5 @@
-from src.util.FakeCointegratedPair import gbm_series, ou_process, cointegrated_ts_generator
-from src.util.PairReturnBuilder import signal_builder, pair_ret_builder
+from old.FakeCointegratedPair import gbm_series, ou_process, cointegrated_ts_generator
+from old.PairReturnBuilder import signal_builder, pair_ret_builder
 from src.Cointegrator import CointegratedPair
 import numpy as np
 

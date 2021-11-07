@@ -1,23 +1,14 @@
-import itertools
-from enum import Enum, unique
 import random
-from typing import Dict, Tuple, List, Optional, Union
-import numpy as np
-from numpy import array
+from typing import Tuple, List, Union
 import pandas as pd
-from sklearn.linear_model import LinearRegression
 from statsmodels.tsa.api import adfuller
-from src.DataRepository2 import DataRepository2
-from src.Window import Window
-from src.util.Features import Features
-from src.util.Tickers import Tickers
-from src.Position import Position
-import cufflinks as cf
+from src.DataRepository import DataRepository
 import statsmodels.api as sm
-from src.OnlineRollingStats import OnlineRollingStats
+from src.util.OnlineRollingStats import OnlineRollingStats
+
 
 class Stock:
-    def __init__(self, ticker: str, repository: DataRepository2):
+    def __init__(self, ticker: str, repository: DataRepository):
         self.ticker = ticker
         self.window_prices = self.get_window_prices(repository.current_price_data)
 
@@ -27,6 +18,7 @@ class Stock:
     def get_window_prices(self, current_price_data) -> pd.Series:
         return current_price_data[self.ticker]
 
+
 class CointPair:
     def __init__(self, stock_x: Stock, stock_y: Stock, cointegration_result: List):
         self.stock_x: Stock = stock_x
@@ -34,8 +26,9 @@ class CointPair:
         self.hedge_ratio, self.residuals = cointegration_result
         self.residuals_mavg: pd.Series = self.residuals.rolling(20).mean()
         self.residuals_mstdv: pd.Series = self.residuals.rolling(20).std()
-        self.upper_band: float = self.residuals_mavg + 0.5 * self.residuals_mstdv
-        self.lower_band: float = self.residuals_mavg - 0.5 * self.residuals_mstdv
+        self.num_std_away: float = 1.5
+        self.upper_band: pd.Series = self.residuals_mavg + self.num_std_away * self.residuals_mstdv
+        self.lower_band: pd.Series = self.residuals_mavg - self.num_std_away * self.residuals_mstdv
         self.previous_pair_signal: int = 0
         self.last_residual, self.last_roll_mean, self.last_roll_std = None, None, None
         self.last_lower_band, self.last_upper_band = None, None
@@ -52,6 +45,15 @@ class CointPair:
         self.current_pair_signal = self.__get_current_pair_signal(today, no_new_trades_from_date,
                                                                   trade_window_end_date)
 
+    def plot_residuals_and_bb_bands(self):
+        residual_features_df = pd.concat([self.residuals, self.residuals_mavg,
+                                          self.upper_band, self.lower_band], axis=1).dropna(axis=0)
+        residual_features_df.columns = ["Residuals", "Residuals MA", "Residuals Upper BB", "Residuals Lower BB"]
+        figure = residual_features_df.iplot(colorscale="polar", theme="white", asFigure=True,
+                                            yTitle="Residuals, Residual Moving Average and BBands", xTitle="Time")
+        figure.update_layout(font=dict(family="Computer Modern"))
+        # figure.write_image("images/{}.pdf".format(image_name), format="pdf")
+        figure.show()
 
     def __build_last_resid_mean_std(self, today) -> Tuple:
         last_residual = self.__compute_last_residual(today)
@@ -59,8 +61,8 @@ class CointPair:
         return last_residual, last_roll_mean, last_roll_std
 
     def __build_last_upper_lower_bound(self) -> Tuple:
-        last_upper = self.last_roll_mean + 0.5 * self.last_roll_std
-        last_lower = self.last_roll_mean - 0.5 * self.last_roll_std
+        last_upper = self.last_roll_mean + self.num_std_away * self.last_roll_std
+        last_lower = self.last_roll_mean - self.num_std_away * self.last_roll_std
         return last_lower, last_upper
 
     def __update_coint_pair_series(self, today) -> None:
@@ -95,34 +97,41 @@ class CointPair:
             current_signal = 0
         elif self.previous_pair_signal == 1 and today < trade_window_end_date:
             current_signal = self.__evaluate_exiting_long_position()
-            if current_signal == -1: current_signal = 0 #dont want to jump from long to short in one step
+            if current_signal == -1: current_signal = 0  # don't want to jump from long to short in one step
         elif self.previous_pair_signal == -1 and today < trade_window_end_date:
             current_signal = self.__evaluate_exiting_short_position()
-            if current_signal == 1: current_signal = 0 #dont want to jump from short to long in one step
+            if current_signal == 1: current_signal = 0  # don't want to jump from short to long in one step
         else:
             current_signal = 0
         return current_signal
 
     def __evaluate_trade_trigger(self) -> int:
-        if self.last_residual > self.last_upper_band: return -1
-        elif self.last_residual < self.last_lower_band: return 1
-        else: return 0
+        if self.last_residual > self.last_upper_band:
+            return -1
+        elif self.last_residual < self.last_lower_band:
+            return 1
+        else:
+            return 0
 
     def __evaluate_exiting_long_position(self) -> int:
-        if self.last_residual > self.last_roll_mean: return 0
-        else: return 1
+        if self.last_residual > self.last_roll_mean:
+            return 0
+        else:
+            return 1
 
     def __evaluate_exiting_short_position(self) -> int:
-        if self.last_residual < self.last_roll_mean: return 0
-        else: return -1
+        if self.last_residual < self.last_roll_mean:
+            return 0
+        else:
+            return -1
 
-class Cointegrator2:
 
-    def __init__(self, repository: DataRepository2):
-        self.repository: DataRepository2 = repository
-        #self.target_number_of_coint_pairs: int = target_number_of_coint_pairs
-        self.cointegrated_pairs =  self.get_cointegrated_pairs()
+class Cointegrator:
 
+    def __init__(self, repository: DataRepository):
+        self.repository: DataRepository = repository
+        # self.target_number_of_coint_pairs: int = target_number_of_coint_pairs
+        self.cointegrated_pairs = self.get_cointegrated_pairs()
 
     @staticmethod
     def __get_hedge_ratio_and_residuals(x: pd.Series, y: pd.Series) -> Tuple:
@@ -156,7 +165,8 @@ class Cointegrator2:
     def get_cointegrated_pairs(self) -> List[CointPair]:
         stock_obj_dict, cointpair_stocks, cointpair_list = {}, [], []
         random.seed(42)
-        shuffled_allowed_couples = random.sample(self.repository.allowed_couples, k=len(self.repository.allowed_couples))
+        shuffled_allowed_couples = random.sample(self.repository.allowed_couples,
+                                                 k=len(self.repository.allowed_couples))
         for tick_x, tick_y in shuffled_allowed_couples:
             if tick_x in cointpair_stocks or tick_y in cointpair_stocks: continue
             if (tick_x, tick_y) == ('GOOG', 'GOOGL') or (tick_x, tick_y) == ('GOOGL', 'GOOG'): continue
@@ -170,15 +180,3 @@ class Cointegrator2:
                 cointpair_stocks += [tick_x, tick_y]
                 cointpair_list.append(cointpair)
         return cointpair_list
-
-
-
-
-
-
-
-
-
-
-
-

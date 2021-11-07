@@ -2,7 +2,7 @@
 
 
 from src.DataRepository import Universes
-from src.util.Tickers import EtfTickers, SnpTickers
+from old.Tickers import EtfTickers, SnpTickers
 
 
 
