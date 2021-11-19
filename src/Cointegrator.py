@@ -50,9 +50,9 @@ class CointPair:
                                           self.upper_band, self.lower_band], axis=1).dropna(axis=0)
         residual_features_df.columns = ["Residuals", "Residuals MA", "Residuals Upper BB", "Residuals Lower BB"]
         figure = residual_features_df.iplot(colorscale="polar", theme="white", asFigure=True,
-                                            yTitle="Residuals, Residual Moving Average and BBands", xTitle="Time")
+                                            title=f"{self} - Residuals, BolBands, Residuals MA", xTitle="Time")
         figure.update_layout(font=dict(family="Computer Modern"))
-        # figure.write_image("images/{}.pdf".format(image_name), format="pdf")
+        # figure.write_image("images/img.pdf", format="pdf")
         figure.show()
 
     def __build_last_resid_mean_std(self, today) -> Tuple:
@@ -130,8 +130,7 @@ class Cointegrator:
 
     def __init__(self, repository: DataRepository):
         self.repository: DataRepository = repository
-        # self.target_number_of_coint_pairs: int = target_number_of_coint_pairs
-        self.cointegrated_pairs = self.get_cointegrated_pairs()
+        self.cointegrated_pairs = self.create_cointegrated_pairs()
 
     @staticmethod
     def __get_hedge_ratio_and_residuals(x: pd.Series, y: pd.Series) -> Tuple:
@@ -162,15 +161,13 @@ class Cointegrator:
             return hedge_ratio, residuals
         return
 
-    def get_cointegrated_pairs(self) -> List[CointPair]:
+    def create_cointegrated_pairs(self) -> List[CointPair]:
         stock_obj_dict, cointpair_stocks, cointpair_list = {}, [], []
         random.seed(42)
-        shuffled_allowed_couples = random.sample(self.repository.allowed_couples,
-                                                 k=len(self.repository.allowed_couples))
+        shuffled_allowed_couples_raw = random.sample(self.repository.allowed_couples, k=len(self.repository.allowed_couples))
+        shuffled_allowed_couples = self.__remove__class_A_B_share_tickers(shuffled_allowed_couples_raw)
         for tick_x, tick_y in shuffled_allowed_couples:
             if tick_x in cointpair_stocks or tick_y in cointpair_stocks: continue
-            if (tick_x, tick_y) == ('GOOG', 'GOOGL') or (tick_x, tick_y) == ('GOOGL', 'GOOG'): continue
-            if (tick_x, tick_y) == ('NWS', 'NWSA') or (tick_x, tick_y) == ('NWSA', 'NWS'): continue
             if tick_x not in stock_obj_dict: stock_obj_dict[tick_x] = Stock(tick_x, self.repository)
             if tick_y not in stock_obj_dict: stock_obj_dict[tick_y] = Stock(tick_y, self.repository)
             stock_x, stock_y = stock_obj_dict[tick_x], stock_obj_dict[tick_y]
@@ -180,3 +177,9 @@ class Cointegrator:
                 cointpair_stocks += [tick_x, tick_y]
                 cointpair_list.append(cointpair)
         return cointpair_list
+
+    @staticmethod
+    def __remove__class_A_B_share_tickers(couples_raw: List[Tuple]):
+        couples = [couple for couple in couples_raw if couple not in [('GOOG', 'GOOGL'), ('GOOGL', 'GOOG'),
+                                                                      ('NWS', 'NWSA'), ('NWSA', 'NWS')]]
+        return couples
