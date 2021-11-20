@@ -10,12 +10,12 @@ import yfinance as yf
 
 
 class DataRepository:
-    def __init__(self, window: Window):
+    def __init__(self, window: Window, data_load=False):
         self.window = window
         self.snp_info = self.__get_company_data_from_yfinance()
-        #self.__get_price_data_from_yfinance()
+        if data_load: self.__get_price_data_from_yfinance()
         self.lazy_dask_price_data = self.__get_lazy_dask_price_data_from_csv()
-        self.current_price_data = self.__get_current_price_data_from_dask_df() # might useful to be called outside for understanding
+        self.current_price_data = self.__get_current_price_data_from_dask_df()  # might useful to be called outside for understanding
         self.current_cluster_dict = self.__get_current_cluster_dict()
         self.allowed_couples = self.__get_allowed_couples()
 
