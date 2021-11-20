@@ -4,7 +4,7 @@ from src.DataRepository import DataRepository
 from src.Cointegrator import Cointegrator, CointPair
 from src.Portfolio import Portfolio
 from src.Window import Window
-from typing import List
+from typing import List, Union
 import matplotlib.pyplot as plt
 from pathlib import Path
 import numpy as np
@@ -15,8 +15,8 @@ class PairTrader:
         self.data_repository: DataRepository = self.get_data_repository(backtest_start_date, coint_window_length)
         self.final_backtest_date =  self.data_repository.window.get_backtest_end_date()
         self.today = self.data_repository.window.get_today()
-        self.coint_pairs = None
-        self.portfolio = None
+        self.coint_pairs: Union[None, List[CointPair]] = None
+        self.portfolio: Union[None, Portfolio] = None
         self.total_pnl_dict: dict = {}
 
     @staticmethod
@@ -46,8 +46,8 @@ class PairTrader:
 
 
     def init(self) -> None:
-        self.coint_pairs = self.get_coint_pairs()
-        self.portfolio = self.get_portfolio()
+        self.coint_pairs: List[CointPair] = self.get_coint_pairs()
+        self.portfolio: Portfolio = self.get_portfolio()
         self.today = self.data_repository.window.get_today()
 
     def trade(self) -> None:
