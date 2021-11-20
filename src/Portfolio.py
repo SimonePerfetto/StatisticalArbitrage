@@ -4,61 +4,78 @@ import pandas as pd
 from typing import Tuple
 from src.Cointegrator import CointPair
 from enum import Enum, unique
+import cufflinks
+from abc import ABC, abstractmethod
 
 
-@unique
-class Holdingtype(Enum):
-    Long = "Long"
-    Short = "Short"
-
-#TODO: make distinct classes LongHolding, ShortHolding as inheriting from Holding and disintuishing characteristics
+#TODO: make distinct classes LongHolding, ShortHolding as inheriting from Holding and distinguishing characteristics
 # (eg invested capital for long vs. locked cash for short)
-class Holding:
-    def __init__(self, ticker: str, price: float, units: int, holding_type: Holdingtype, transaction_fee: float):
+class Holding(ABC):
+    def __init__(self, ticker: str, price: float, units: int, transaction_fee: float):
         self.ticker: str = ticker
         self.price: float = price
         self.units: int = units
-        self.holding_type: Holdingtype = holding_type
         self.transaction_fee: float = transaction_fee
         self.prev_holding_pnl: float = 0
         self.current_holding_pnl: float = 0
-        self.invested_capital: float = 0
-        self.posted_margin: float = 0
-        self.locked_cash: float = 0
-        self.adjust_capital_invested_or_locked()
+
+    def adjust_pnl_for_entry_transaction_costs(self) -> None:
+        self.prev_holding_pnl = self.current_holding_pnl
+        self.current_holding_pnl = - self.transaction_fee * (self.price * self.units)
+
+    @abstractmethod
+    def adjust_capital(self):
+        """ different behaviour for LongHolding and ShortHolding """
+
+    @abstractmethod
+    def update_holding_price_and_pnl(self, new_price: float, is_hold_being_liquidated: bool = False):
+        """ """
+
+class LongHolding(Holding):
+    def __init__(self, ticker: str, price: float, units: int, transaction_fee: float):
+        super().__init__(ticker, price, units, transaction_fee)
+        self.invested_capital = self.adjust_capital()
         self.adjust_pnl_for_entry_transaction_costs()
+
+
+    def adjust_capital(self) -> float:
+        return self.price * self.units
 
     def update_holding_price_and_pnl(self, new_price: float, is_hold_being_liquidated: bool = False) -> None:
         self.prev_holding_pnl = self.current_holding_pnl
-        if self.holding_type.value == "Long":
-            self.current_holding_pnl += self.units * (new_price - self.price)
-        else:
-            self.current_holding_pnl -= self.units * (new_price - self.price)
+        self.current_holding_pnl += self.units * (new_price - self.price)
         if is_hold_being_liquidated:
             self.current_holding_pnl -= self.units * new_price * self.transaction_fee
         self.price = new_price
 
-    def adjust_pnl_for_entry_transaction_costs(self) -> None:
-        self.current_holding_pnl = - self.transaction_fee * (self.price * self.units)
-        self.prev_holding_pnl = self.current_holding_pnl
+    def __repr__(self):
+        return f"Long({self.ticker})"
 
-    def adjust_capital_invested_or_locked(self) -> None:
+class ShortHolding(Holding):
+    def __init__(self, ticker: str, price: float, units: int, transaction_fee: float):
+        super().__init__(ticker, price, units, transaction_fee)
+        self.locked_cash, self.posted_margin = self.adjust_capital()
+        self.adjust_pnl_for_entry_transaction_costs()
+
+    def adjust_capital(self) -> Tuple:
         notional = self.price * self.units
-        if self.holding_type.value == "Long":
-            self.invested_capital = notional
-        else:
-            self.posted_margin = 0.5 * notional
-            self.locked_cash = 1.5 * notional
+        locked_cash, posted_margin = 1.5 * notional, 0.5 * notional
+        return locked_cash, posted_margin
 
+    def update_holding_price_and_pnl(self, new_price: float, is_hold_being_liquidated: bool = False):
+        self.prev_holding_pnl = self.current_holding_pnl
+        self.current_holding_pnl -= self.units * (new_price - self.price)
+        if is_hold_being_liquidated:
+            self.current_holding_pnl -= self.units * new_price * self.transaction_fee
+        self.price = new_price
 
     def __repr__(self):
-        return f"{self.holding_type.value}({self.ticker})"
-
+        return f"Short({self.ticker})"
 
 class PairHolding:
-    def __init__(self, holding_long: Holding, holding_short: Holding):
-        self.holding_long: Holding = holding_long
-        self.holding_short: Holding = holding_short
+    def __init__(self, holding_long: LongHolding, holding_short: ShortHolding):
+        self.holding_long: LongHolding = holding_long
+        self.holding_short: ShortHolding = holding_short
         self.pair_prev_holding_pnl: float = 0
         self.pair_current_holding_pnl: float = 0
         self.invested_capital = holding_long.invested_capital
@@ -80,7 +97,7 @@ class Portfolio:
 
     def __init__(self, max_active_pairs: int, cash: float = 1_000_000.0):
         self.max_active_pairs: int = max_active_pairs
-        self.pf_cur_cash: float = cash
+        self.pf_free_cash: float = cash
         self.pf_locked_cash: float = 0
         self.pf_committed_capital: float = 0
         self.outstanding_pnl_dict = {}
@@ -94,8 +111,8 @@ class Portfolio:
         self.n_bad_trades: int = 0
 
     def __repr__(self):
-        #CurrCash: {self.pf_cur_cash}, CommCapital: {self.pf_committed_capital},
-        return f"Portfolio(CurrCash: {self.pf_cur_cash}, CommCapital: {self.pf_committed_capital}, " \
+        #CurrCash: {self.pf_free_cash}, CommCapital: {self.pf_committed_capital},
+        return f"Portfolio(FreeCash: {self.pf_free_cash}, CommCapital: {self.pf_committed_capital}, " \
                f"GoodTrades: {self.n_good_trades}, BadTrades: {self.n_bad_trades}, " \
                f"UnrealisedPnL: {round(self.current_pnl, 2)}, RealisedPnL: {round(self.realised_pnl,2)}, " \
                f"TotPnL: {round(self.total_pnl,2)})"
@@ -133,16 +150,16 @@ class Portfolio:
                 return
             #TODO: subtract transaction costs from cash rather than from pnl
             pair_holding = self.__get__new_pair_holding(coint_pair, today, trade_action)
-            self.__update_current_and_locked_cash_and_committed_capital(pair_holding)
+            self.__update_free_locked_cash_and_committed_capital(pair_holding)
             self.current_holdings[coint_pair] = pair_holding
-            #coint_pair.plot_residuals_and_bb_bands()
+            coint_pair.plot_residuals_and_bb_bands(trade_action)
 
         elif trade_action in ("CloseLong", "CloseShort"):
             self.__update_pair_holding_pnl(coint_pair, today, trade_action)
             self.__add_holding_pnl_to_portfolio_pnl(coint_pair)
             self.__consolidate_pair_holding_pnl_for_closed_position(coint_pair)
             del self.current_holdings[coint_pair]
-            #coint_pair.plot_residuals_and_bb_bands()
+            coint_pair.plot_residuals_and_bb_bands(trade_action)
 
         elif trade_action in ("HoldLong", "HoldShort"):
             self.__update_pair_holding_pnl(coint_pair, today, trade_action)
@@ -158,13 +175,13 @@ class Portfolio:
         self.realised_pnl += closing_pair_pnl
         self.current_pnl -= closing_pair_pnl
         self.pf_locked_cash -= pair_holding.locked_cash
-        self.pf_cur_cash += pair_holding.tot_committed_capital + closing_pair_pnl
+        self.pf_free_cash += pair_holding.tot_committed_capital + closing_pair_pnl
         self.pf_committed_capital -= pair_holding.tot_committed_capital
         if closing_pair_pnl > 0: self.n_good_trades += 1
         else: self.n_bad_trades += 1
 
-    def __update_current_and_locked_cash_and_committed_capital(self, pair_holding):
-        self.pf_cur_cash -= pair_holding.tot_committed_capital
+    def __update_free_locked_cash_and_committed_capital(self, pair_holding):
+        self.pf_free_cash -= pair_holding.tot_committed_capital
         self.pf_committed_capital += pair_holding.tot_committed_capital
         self.pf_locked_cash += pair_holding.locked_cash
 
@@ -174,11 +191,11 @@ class Portfolio:
         nx, ny = self.__units_finder(py, hedge_ratio)
         ticker_x, ticker_y = self.__get_ticker_x_y(coint_pair)
         if trade_action == "OpenLong":  # long pair means buy 1 unit of y, sell hedgeratio units of x
-            holding_long = Holding(ticker_y, py, ny, Holdingtype.Long, self.t_fee)
-            holding_short = Holding(ticker_x, px, nx, Holdingtype.Short, self.t_fee)
+            holding_long = LongHolding(ticker_y, py, ny, self.t_fee)
+            holding_short = ShortHolding(ticker_x, px, nx, self.t_fee)
         else:  # short pair means sell 1 unit of y, buy hedgeratio units of x
-            holding_long = Holding(ticker_x, px, nx, Holdingtype.Long, self.t_fee)
-            holding_short = Holding(ticker_y, py, ny, Holdingtype.Short, self.t_fee)
+            holding_long = LongHolding(ticker_x, px, nx, self.t_fee)
+            holding_short = ShortHolding(ticker_y, py, ny, self.t_fee)
         return PairHolding(holding_long=holding_long, holding_short=holding_short)
 
     @staticmethod
@@ -221,7 +238,8 @@ class Portfolio:
             self.current_holdings[coint_pair].holding_long.update_holding_price_and_pnl(px, is_hold_being_liquidated=True)
             self.current_holdings[coint_pair].holding_short.update_holding_price_and_pnl(py, is_hold_being_liquidated=True)
         else:
-            raise ValueError(f"Check the logic for date:{today} and cointpair:{coint_pair} as this should not happen")
+            raise ValueError(f"Check the signal logic for date:{today} and cointpair:{coint_pair} as this should not happen."
+                             f"Current signal: {coint_pair.current_pair_signal}, previous signal: {coint_pair.previous_pair_signal}")
 
         self.current_holdings[coint_pair].compute_current_pair_holding_pnl()
 
