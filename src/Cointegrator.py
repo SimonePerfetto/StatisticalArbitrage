@@ -45,12 +45,12 @@ class CointPair:
         self.current_pair_signal = self.__get_current_pair_signal(today, no_new_trades_from_date,
                                                                   trade_window_end_date)
 
-    def plot_residuals_and_bb_bands(self):
+    def plot_residuals_and_bb_bands(self, trade_action):
         residual_features_df = pd.concat([self.residuals, self.residuals_mavg,
                                           self.upper_band, self.lower_band], axis=1).dropna(axis=0)
         residual_features_df.columns = ["Residuals", "Residuals MA", "Residuals Upper BB", "Residuals Lower BB"]
         figure = residual_features_df.iplot(colorscale="polar", theme="white", asFigure=True,
-                                            title=f"{self} - Residuals, BolBands, Residuals MA", xTitle="Time")
+                                            title=f"{trade_action} {self} - Residuals, BolBands, Residuals MA", xTitle="Time")
         figure.update_layout(font=dict(family="Computer Modern"))
         # figure.write_image("images/img.pdf", format="pdf")
         figure.show()
