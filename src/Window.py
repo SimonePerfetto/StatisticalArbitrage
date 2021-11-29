@@ -6,10 +6,10 @@ from pathlib import Path
 
 class Window:
 
-    def __init__(self, backtest_start_date: date,  coint_window_length: int):
+    def __init__(self, backtest_start_date: date,  coint_window_length: int, trading_window_length: int):
         self.backtest_start_date: date = backtest_start_date
         self.coint_window_length: int = coint_window_length
-        self.trade_window_length: int = coint_window_length * 3  # could be param
+        self.trade_window_length: int = trading_window_length
         self.all_dates: pd.Series = self.__load_all_available_dates()
         self.backtest_end_date: date = self.get_backtest_end_date()
         self.no_new_trades_days: int = 15  # might become parameter later
@@ -40,8 +40,9 @@ class Window:
         self.no_new_trades_from_date = self.add_date(self.trade_window_end_date, -self.no_new_trades_days)
 
     def update_key_dates(self) -> None:
+        #TODO: need to parametrize the below
         days_left = (self.backtest_end_date - self.add_date(self.trade_window_end_date, 1)).days
-        if days_left >= self.coint_window_length * 6 - 1:  # double trading window
+        if days_left >= self.trade_window_length * 1.5 - 1:  # 1.5 times trading window,
             self.coint_window_start_date = self.add_date(self.trade_window_end_date, -self.coint_window_length + 1)
             self.coint_window_end_date = self.trade_window_end_date
             self.trade_window_start_date = self.add_date(self.trade_window_end_date, 1)
