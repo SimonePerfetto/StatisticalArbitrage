@@ -10,22 +10,28 @@ from pathlib import Path
 import numpy as np
 
 class PairTrader:
-    def __init__(self, coint_window_length: int, backtest_start_date: date, max_active_pairs: int):
+    def __init__(self, coint_window_length: int, roll_stats_window: int, trade_window_length: int,
+                 backtest_start_date: date, max_active_pairs: int, num_std_away: float):
+        self.roll_stats_window = roll_stats_window
         self.max_active_pairs = max_active_pairs
-        self.data_repository: DataRepository = self.get_data_repository(backtest_start_date, coint_window_length)
+        self.num_std_away = num_std_away
+        self.data_repository: DataRepository = \
+            self.get_data_repository(backtest_start_date, coint_window_length, trade_window_length)
         self.final_backtest_date =  self.data_repository.window.get_backtest_end_date()
         self.today = self.data_repository.window.get_today()
         self.coint_pairs: Union[None, List[CointPair]] = None
         self.portfolio: Union[None, Portfolio] = None
         self.total_pnl_dict: dict = {}
+        self.n_bad_trades_dict: dict = {}
+        self.n_good_trades_dict: dict = {}
 
     @staticmethod
-    def get_data_repository(backtest_start_date, coint_window_length) -> DataRepository:
-        window = Window(backtest_start_date, coint_window_length)
+    def get_data_repository(backtest_start_date, coint_window_length, trade_window_length) -> DataRepository:
+        window = Window(backtest_start_date, coint_window_length, trade_window_length)
         return DataRepository(window)
 
     def get_coint_pairs(self) -> List[CointPair]:
-        cointegrator = Cointegrator(self.data_repository)
+        cointegrator = Cointegrator(self.data_repository, self.roll_stats_window, self.num_std_away)
         return cointegrator.cointegrated_pairs
 
     def get_portfolio(self) -> Portfolio:
@@ -60,6 +66,8 @@ class PairTrader:
             self.portfolio.rebalance(self.coint_pairs, self.today)
             print(f"{self.today}: {self.portfolio}")
             self.total_pnl_dict[self.today] = self.portfolio.total_pnl
+            self.n_bad_trades_dict[self.today] = self.portfolio.n_bad_trades
+            self.n_good_trades_dict[self.today] = self.portfolio.n_good_trades
             self.today = self.data_repository.window.go_to_next_day(self.today)
 
         pd.Series(self.total_pnl_dict).plot()
@@ -67,6 +75,7 @@ class PairTrader:
 
 
 if __name__ == '__main__':
-    pairtrader = PairTrader(coint_window_length=60, backtest_start_date=date(2008, 1, 2), max_active_pairs=10)
+    #pairtrader = PairTrader(coint_window_length=60, roll_stats_window=20, trade_window_length=180, backtest_start_date=date(2008, 1, 2), max_active_pairs=10, num_std_away=2)
+    pairtrader = PairTrader(coint_window_length=60, roll_stats_window=20, trade_window_length=180, backtest_start_date=date(2008, 1, 2), max_active_pairs=10, num_std_away=1.8)
     pairtrader.init()
     pairtrader.trade()
