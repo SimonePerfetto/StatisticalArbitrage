@@ -29,7 +29,7 @@ class Stock:
 class CointPair:
     def __init__(self, stock_x: Stock, stock_y: Stock, cointegration_result: List, roll_stats_window: int,
                  num_std_away: float):
-        self.roll_stats_window = roll_stats_window
+        self.roll_stats_window: int = roll_stats_window
         self.num_std_away: float = num_std_away
         self.stock_x: Stock = stock_x
         self.stock_y: Stock = stock_y
@@ -177,17 +177,18 @@ class Cointegrator:
         return h
 
     def __coint_check(self, residuals: pd.Series) -> bool:
-        '''
+        """
         critical values are in the following dictionary form:
             {'1%': -3.4304385694773387,
              '5%': -2.8615791461685034,
              '10%': -2.566790836162312}
-        '''
+        """
         adf_results = adfuller(residuals)
-        adf_test_statistic = adf_results[0]
-        adf_critical_value = adf_results[4]['1%']
+        #adf_test_statistic = adf_results[0]
+        #adf_critical_value = adf_results[4]['1%']
+        adf_pvalue = adf_results[1]
         # hurst = self.__get_hurst(residuals)
-        return adf_test_statistic < adf_critical_value  # and hurst < 0.35
+        return adf_pvalue < 0.01 # adf_test_statistic < adf_critical_value  # and hurst < 0.35
 
     def cointegrate(self, stock_x: Stock, stock_y: Stock) -> Union[Tuple, None]:
         stock_x_coint_window_prices = stock_x.window_prices[:self.repository.window.coint_window_end_date]
