@@ -37,10 +37,12 @@ class PairTrader:
     def get_portfolio(self) -> Portfolio:
         return Portfolio(max_active_pairs=self.max_active_pairs)
 
-    def update_pair_signals(self) -> None:
+    def update_pair_signals(self, today) -> None:
         for cointpair in self.coint_pairs:
-            cointpair.update_signal(self.today, self.data_repository.window.no_new_trades_from_date,
+            cointpair.update_signal(today, self.data_repository.window.no_new_trades_from_date,
                                     self.data_repository.window.trade_window_end_date)
+
+
     #TODO: not implemented yet
     def compute_sharpe_ratio(self):
         rates = pd.read_csv(Path(f"../data/DTB3.csv"), parse_dates=["Date"], dayfirst=True).set_index("Date")
@@ -62,8 +64,8 @@ class PairTrader:
                 self.data_repository.window.update_key_dates()
                 self.data_repository.update_data()
                 self.coint_pairs = self.get_coint_pairs()
-            self.update_pair_signals()
-            self.portfolio.rebalance(self.coint_pairs, self.today)
+            self.update_pair_signals(self.today)
+            self.portfolio.rebalance(self.today, self.coint_pairs)
             print(f"{self.today}: {self.portfolio}")
             self.total_pnl_dict[self.today] = self.portfolio.total_pnl
             self.n_bad_trades_dict[self.today] = self.portfolio.n_bad_trades
