@@ -56,8 +56,7 @@ class Window:
         return self.trade_window_start_date
 
     def get_backtest_end_date(self) -> date:
-        # return datetime(2010,7,16).date()
         return self.all_dates.iloc[-1]
 
-    def go_to_next_day(self, today) -> date:
+    def go_to_next_day(self, today: date) -> date:
         return self.add_date(today, 1)
