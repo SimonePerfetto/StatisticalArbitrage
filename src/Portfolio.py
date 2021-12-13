@@ -1,6 +1,6 @@
 from datetime import date
 import numpy as np
-from typing import Tuple, List
+from typing import Tuple
 from src.Cointegrator import CointPair
 
 from src.TradedPair import LongLeg, ShortLeg, TradedPair
@@ -77,7 +77,7 @@ class Portfolio:
             if trade_action in ("CloseLong", "CloseShort"):
                 self.update_portfolio_realized_pnl(closing_pair=traded_pair)
                 self.remove_from_holdings(coint_pair)
-                if plot: coint_pair.plot_residuals_and_bb_bands(trade_action)
+                if plot and traded_pair.pair_current_holding_pnl<0: coint_pair.plot_residuals_and_bb_bands(trade_action)
 
         elif trade_action == "Pass":
             """ do nothing """
