@@ -1,6 +1,6 @@
 from datetime import date
 import pandas as pd
-from src.SPXDataRepository import SPXDataRepository
+from src.DataRepository import SPXDataRepository
 from src.Cointegrator import Cointegrator, CointPair
 from src.Portfolio import Portfolio
 from src.Window import Window
