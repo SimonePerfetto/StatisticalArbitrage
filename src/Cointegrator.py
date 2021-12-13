@@ -2,7 +2,7 @@ import random
 from typing import Tuple, List, Union
 import pandas as pd
 from statsmodels.tsa.api import adfuller
-from src.SPXDataRepository import SPXDataRepository
+from src.DataRepository import SPXDataRepository
 from src.util.OnlineRollingStats import OnlineRollingStats
 from hurst import compute_Hc
 from datetime import date
