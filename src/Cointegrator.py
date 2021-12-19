@@ -216,9 +216,8 @@ class Cointegrator:
         #start = time.time()
         cointpair_stocks, cointpair_list = [], []
         random.seed(5)
-        shuffled_allowed_couples_raw = random.sample(self.repository.allowed_couples,
+        shuffled_allowed_couples = random.sample(self.repository.allowed_couples,
                                                      k=len(self.repository.allowed_couples))
-        shuffled_allowed_couples = self.__remove__class_a_b_share_tickers(shuffled_allowed_couples_raw)
         for tick_x, tick_y in shuffled_allowed_couples:
             if tick_x in cointpair_stocks or tick_y in cointpair_stocks: continue
             stock_x, stock_y = Stock(tick_x, self.repository), Stock(tick_y, self.repository)
@@ -232,9 +231,3 @@ class Cointegrator:
         #print(end - start)
 
         return cointpair_list
-
-    @staticmethod
-    def __remove__class_a_b_share_tickers(couples_raw: List[Tuple]):
-        couples = [couple for couple in couples_raw if couple not in [('GOOG', 'GOOGL'), ('GOOGL', 'GOOG'),
-                                                                      ('NWS', 'NWSA'), ('NWSA', 'NWS')]]
-        return couples
