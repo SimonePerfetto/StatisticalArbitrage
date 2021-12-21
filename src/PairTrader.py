@@ -3,7 +3,7 @@ import pandas as pd
 from src.DataRepository import SPXDataRepository
 from src.Cointegrator import Cointegrator, CointPair
 from src.Portfolio import Portfolio
-from src.Window import Window
+from src.DateManager import DateManager
 from typing import List, Union
 import matplotlib.pyplot as plt
 from pathlib import Path
@@ -17,8 +17,8 @@ class PairTrader:
         self.num_std_away = num_std_away
         self.data_repository: SPXDataRepository = \
             self.get_data_repository(backtest_start_date, coint_window_length, trade_window_length)
-        self.final_backtest_date =  self.data_repository.window.get_backtest_end_date()
-        self.today = self.data_repository.window.get_today()
+        self.final_backtest_date =  self.data_repository.date_manager.get_backtest_end_date()
+        self.today = self.data_repository.date_manager.get_today()
         self.coint_pairs: Union[None, List[CointPair]] = None
         self.portfolio: Union[None, Portfolio] = None
         self.total_pnl_dict: dict = {}
@@ -27,7 +27,7 @@ class PairTrader:
 
     @staticmethod
     def get_data_repository(backtest_start_date, coint_window_length, trade_window_length) -> SPXDataRepository:
-        window = Window(backtest_start_date, coint_window_length, trade_window_length)
+        window = DateManager(backtest_start_date, coint_window_length, trade_window_length)
         return SPXDataRepository(window, "closes.csv")
 
     def get_coint_pairs(self) -> List[CointPair]:
@@ -39,19 +39,19 @@ class PairTrader:
 
     def update_pair_signals(self, today) -> None:
         for cointpair in self.coint_pairs:
-            cointpair.update_signal(today, self.data_repository.window.no_new_trades_from_date,
-                                    self.data_repository.window.trade_window_end_date)
+            cointpair.update_signal(today, self.data_repository.date_manager.no_new_trades_from_date,
+                                    self.data_repository.date_manager.trade_end_date)
 
 
     def init(self) -> None:
         self.coint_pairs: List[CointPair] = self.get_coint_pairs()
         self.portfolio: Portfolio = self.get_portfolio()
-        self.today = self.data_repository.window.get_today()
+        self.today = self.data_repository.date_manager.get_today()
 
     def trade(self) -> None:
         while self.today < self.final_backtest_date:
-            if self.today > self.data_repository.window.trade_window_end_date:
-                self.data_repository.window.update_key_dates()
+            if self.today > self.data_repository.date_manager.trade_end_date:
+                self.data_repository.date_manager.update_key_dates()
                 self.data_repository.update_data()
                 self.coint_pairs = self.get_coint_pairs()
             self.update_pair_signals(self.today)
@@ -60,7 +60,7 @@ class PairTrader:
             self.total_pnl_dict[self.today] = self.portfolio.total_pnl
             self.n_bad_trades_dict[self.today] = self.portfolio.n_bad_trades
             self.n_good_trades_dict[self.today] = self.portfolio.n_good_trades
-            self.today = self.data_repository.window.go_to_next_day(self.today)
+            self.today = self.data_repository.date_manager.go_to_next_day(self.today)
 
         pd.Series(self.total_pnl_dict).plot()
         plt.show()

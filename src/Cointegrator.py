@@ -212,9 +212,9 @@ class Cointegrator:
         shuffled_allowed_couples = random.sample(self.repository.allowed_couples,
                                                      k=len(self.repository.allowed_couples))
         x_tickers, y_tickers = self.get_x_y_tickers(shuffled_allowed_couples)
-        coint_info_dict = self.cointegrate(x_tickers, y_tickers, #coint_start, coint_end
-                                           self.repository.window.coint_window_start_date,
-                                           self.repository.window.coint_window_end_date)
+        coint_info_dict = self.cointegrate(x_tickers, y_tickers,  #coint_start, coint_end
+                                           self.repository.date_manager.coint_start_date,
+                                           self.repository.date_manager.coint_end_date)
         already_used =  set()
         for (ticker_x, ticker_y), coint_result in coint_info_dict.items():
             if ticker_x in already_used or ticker_y in already_used: continue

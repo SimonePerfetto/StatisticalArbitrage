@@ -4,14 +4,14 @@ from pathlib import Path
 from typing import List, Dict
 import dask.dataframe as dd
 import pandas as pd
-from src.Window import Window
+from src.DateManager import DateManager
 import yfinance as yf
-from abc import ABC, abstractmethod, ABCMeta
+from abc import ABC, abstractmethod
 
 
 class DataRepositoryBase(ABC):
-    def __init__(self, window: Window, file_name):
-        self.window = window
+    def __init__(self, date_manager: DateManager, file_name):
+        self.date_manager = date_manager
         self.file_name = file_name
 
     @abstractmethod
@@ -24,13 +24,13 @@ class DataRepositoryBase(ABC):
 
 
 class SPXDataRepository(DataRepositoryBase):
-    def __init__(self, window: Window, file_name: str, data_load=False):
-        super().__init__(window, file_name)
+    def __init__(self, date_manager: DateManager, file_name: str, data_load=False):
+        super().__init__(date_manager, file_name)
         self.snp_info = self.__get_misc_data_from_web()
         if data_load: self.__download_price_data_from_yfinance()
         self.lazy_price_data = self.get_lazy_price_data()
-        self.current_price_data = self.get_current_price_data_from_lazy_df(window.coint_window_start_date,
-                                                                           window.trade_window_end_date)  # might useful to be called outside for understanding
+        self.current_price_data = self.get_current_price_data_from_lazy_df(date_manager.coint_start_date,
+                                                                           date_manager.trade_end_date)  # might useful to be called outside for understanding
         self.current_cluster_dict = self.__get_current_cluster_dict()
         self.allowed_couples = self.__get_allowed_couples()
 
@@ -69,8 +69,8 @@ class SPXDataRepository(DataRepositoryBase):
                 for couple in itertools.combinations(ticker_list, 2) if len(ticker_list) > 1]
 
     def __update_price_data_and_cluster(self) -> None:
-        self.current_price_data = self.get_current_price_data_from_lazy_df(self.window.coint_window_start_date,
-                                                                           self.window.trade_window_end_date)
+        self.current_price_data = self.get_current_price_data_from_lazy_df(self.date_manager.coint_start_date,
+                                                                           self.date_manager.trade_end_date)
         self.current_cluster_dict = self.__get_current_cluster_dict()
         self.allowed_couples = self.__get_allowed_couples()
 
