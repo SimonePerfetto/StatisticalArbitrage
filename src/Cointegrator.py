@@ -8,7 +8,6 @@ from hurst import compute_Hc
 from datetime import date
 import numpy as np
 import cufflinks
-from sklearn.linear_model import LinearRegression
 import time
 from src.util.KalmanUtils import KalmanUtils
 
@@ -34,10 +33,10 @@ class Stock:
 class CointPair:
     def __init__(self, stock_x: Stock, stock_y: Stock, cointegration_result: List,
                  roll_stats_window: int, num_std_away: float, kf_flag=True):
-        self.roll_stats_window: int = roll_stats_window
-        self.num_std_away: float = num_std_away
-        self.stock_x: Stock = stock_x
-        self.stock_y: Stock = stock_y
+        self.roll_stats_window = roll_stats_window
+        self.num_std_away = num_std_away
+        self.stock_x = stock_x
+        self.stock_y = stock_y
         self.kf_flag = kf_flag
         self.hedge_ratio, self.intercept, self.residuals = cointegration_result
         if kf_flag:
@@ -87,12 +86,12 @@ class CointPair:
         return self.stock_x.get_ticker(), self.stock_y.get_ticker()
 
     def plot_residuals_and_bb_bands(self, trade_action) -> None:
-        residual_features_df = self.residuals_data.loc[: , ["Res_MAvg", "Upper_BBand", "Lower_BBand"]]
+        residual_features_df = self.residuals_data.loc[:, ["Res_MAvg", "Upper_BBand", "Lower_BBand"]]
         residual_features_df = residual_features_df.insert(0, "Res", self.residuals).dropna(axis=0)
         residual_features_df.columns = ["Residuals", "Residuals MA", "Residuals Upper BB", "Residuals Lower BB"]
-        figure = residual_features_df.iplot(colorscale="polar", theme="white", asFigure=True,
-                                            title=f"{trade_action} {self} - Residuals, BolBands, Residuals MA",
-                                            xTitle="Time")
+        figure = residual_features_df.dropna(axis=0)\
+            .iplot(colorscale="polar", theme="white", asFigure=True,
+                   title=f"{trade_action} {self} - Residuals, BolBands, Residuals MA", xTitle="Time")
         figure.update_layout(font=dict(family="Computer Modern"))
         # figure.write_image("images/img.pdf", format="pdf")
         figure.show()
@@ -187,47 +186,86 @@ class Cointegrator:
         self.cointegrated_pairs = self.create_cointegrated_pairs()
 
     @staticmethod
-    def __get_hedgeratio_intercept_residuals(x: pd.Series, y: pd.Series) -> Tuple:
-        reg = LinearRegression().fit(x.values.reshape(-1, 1), y.values)
-        intercept, hedge_ratio = reg.intercept_, reg.coef_[0]
-        residuals = y - hedge_ratio * x - intercept
-        return hedge_ratio, intercept, residuals
-
-    @staticmethod
     def __get_hurst(res: pd.Series):
         h, _, _ = compute_Hc(res)
         return h
 
-    def __coint_check(self, residuals: pd.Series) -> bool:
+    @staticmethod
+    def __coint_check(residuals: np.ndarray) -> bool:
         adf_results = adfuller(residuals)
         adf_pvalue = adf_results[1]
         # hurst = self.__get_hurst(residuals)
         return adf_pvalue < 0.01  # and hurst < 0.35
 
-    def cointegrate(self, stock_x: Stock, stock_y: Stock) -> Union[Tuple, None]:
-        stock_x_coint_window_prices = stock_x.window_prices[:self.repository.window.coint_window_end_date]
-        stock_y_coint_window_prices = stock_y.window_prices[:self.repository.window.coint_window_end_date]
-        hedge_ratio, intercept, residuals = self.__get_hedgeratio_intercept_residuals(stock_x_coint_window_prices,
-                                                                                      stock_y_coint_window_prices)
-        if self.__coint_check(residuals):
-            return hedge_ratio, intercept, residuals
+    #def cointegrate(self, stock_x: Stock, stock_y: Stock) -> Union[Tuple, None]:
+    #    stock_x_coint_window_prices = stock_x.window_prices[:self.repository.window.coint_window_end_date]
+     #   stock_y_coint_window_prices = stock_y.window_prices[:self.repository.window.coint_window_end_date]
+    #    hedge_ratio, intercept, residuals = self.__get_hedgeratio_intercept_residuals(stock_x_coint_window_prices,
+      #                                                                                stock_y_coint_window_prices)
+      #  if self.__coint_check(residuals):
+      #      return hedge_ratio, intercept, residuals
 
     def create_cointegrated_pairs(self) -> List[CointPair]:
-        #start = time.time()
+        #st = time.time()
         cointpair_stocks, cointpair_list = [], []
         random.seed(5)
         shuffled_allowed_couples = random.sample(self.repository.allowed_couples,
                                                      k=len(self.repository.allowed_couples))
-        for tick_x, tick_y in shuffled_allowed_couples:
-            if tick_x in cointpair_stocks or tick_y in cointpair_stocks: continue
-            stock_x, stock_y = Stock(tick_x, self.repository), Stock(tick_y, self.repository)
-            cointegration_result = self.cointegrate(stock_x, stock_y)
-            if cointegration_result is not None:
-                cointpair = CointPair(stock_x, stock_y, cointegration_result, self.roll_stats_window, self.num_std_away)
-                cointpair_stocks += [tick_x, tick_y]
-                cointpair_list.append(cointpair)
+        x_tickers, y_tickers = self.get_x_y_tickers(shuffled_allowed_couples)
+        coint_info_dict = self.cointegrate(x_tickers, y_tickers, #coint_start, coint_end
+                                           self.repository.window.coint_window_start_date,
+                                           self.repository.window.coint_window_end_date)
+        already_used =  set()
+        for (ticker_x, ticker_y), coint_result in coint_info_dict.items():
+            if ticker_x in already_used or ticker_y in already_used: continue
+            already_used.add(ticker_x)
+            already_used.add(ticker_y)
+            stock_x, stock_y = Stock(ticker_x, self.repository), Stock(ticker_y, self.repository)
+            cointpair = CointPair(stock_x, stock_y, coint_result.values(), self.roll_stats_window, self.num_std_away)
+            cointpair_list.append(cointpair)
 
-        #end = time.time()
-        #print(end - start)
+        #for tick_x, tick_y in shuffled_allowed_couples:
+         #   if tick_x in cointpair_stocks or tick_y in cointpair_stocks: continue
+         #   stock_x, stock_y = Stock(tick_x, self.repository), Stock(tick_y, self.repository)
+          #  cointegration_result = self.cointegrate(stock_x, stock_y)
+           # if cointegration_result is not None:
+          #      cointpair = CointPair(stock_x, stock_y, cointegration_result, self.roll_stats_window, self.num_std_away)
+          ##      cointpair_stocks += [tick_x, tick_y]
+           #     cointpair_list.append(cointpair)
+
+        #ed = time.time()
+        #print(f"Time to cointegrate: {ed - st}")
 
         return cointpair_list
+
+    @staticmethod
+    def get_x_y_tickers(couples):
+        return [c[0] for c in couples], [c[1] for c in couples]
+
+    def cointegrate(self, x_tickers, y_tickers, start, end):
+        #xs = repos.filter_price_data(start, end, x_tickers)
+        #ys = repos.filter_price_data(start, end, y_tickers)
+        xs = self.repository.current_price_data.loc[start:end, x_tickers]
+        ys = self.repository.current_price_data.loc[start:end, y_tickers]
+        xs_mean = np.mean(xs.values, axis=0, keepdims=True)
+        xs_norm = xs.values - xs_mean
+        ys_mean = np.mean(ys.values, axis=0, keepdims=True)
+        ys_norm = ys.values - ys_mean
+        hedge_ratio = np.einsum('ij,ij->j', xs_norm, ys_norm) / np.einsum('ij,ij->j', xs_norm, xs_norm)
+        intercept = (ys_mean - hedge_ratio * xs_mean).flatten()
+        residuals_matrix = ys.values - xs.values * hedge_ratio - intercept * np.ones(xs.shape)
+        residuals_df = pd.DataFrame(residuals_matrix, index=xs.index)
+
+        coint_info_dict = {
+            (x_tickers[i], y_tickers[i]):
+                {
+                    "hedgeratio": hedge_ratio[i],
+                    "intercept": intercept[i],
+                    "residuals": residuals_df.loc[:, i]
+                }
+            for i in range(xs.shape[1]) if self.__coint_check(residuals_df.loc[:, i].values)
+        }
+
+        return coint_info_dict
+
+
