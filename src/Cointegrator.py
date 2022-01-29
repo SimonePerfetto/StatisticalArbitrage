@@ -1,5 +1,5 @@
 import random
-from typing import Tuple, List, Union
+from typing import Tuple, List
 import pandas as pd
 from statsmodels.tsa.api import adfuller
 from src.DataRepository import SPXDataRepository
@@ -13,21 +13,26 @@ from src.util.KalmanUtils import KalmanUtils
 
 
 class Stock:
-    def __init__(self, ticker: str, repository: SPXDataRepository):
-        self.ticker = ticker
-        self.window_prices = self.get_window_prices(repository.current_price_data)
+    def __init__(self, ticker: str, repos: SPXDataRepository):
+        self._ticker = ticker
+        self._price_ts = self.get_price_ts(repos)
 
     def __repr__(self):
-        return f'{self.ticker}'
+        return f'{self._ticker}'
 
-    def get_ticker(self):
-        return self.ticker
+    @property
+    def ticker(self):
+        return self._ticker
 
-    def get_window_prices(self, current_price_data: pd.DataFrame) -> pd.Series:
-        return current_price_data.loc[:, self.ticker]
+    @property
+    def price_ts(self):
+        return self._price_ts
+
+    def get_price_ts(self, repos) -> pd.Series:
+        return repos.price_data.loc[:, self.ticker]
 
     def get_todays_price(self, today) -> float:
-        return self.window_prices.loc[pd.to_datetime(today)]
+        return self.price_ts.loc[pd.to_datetime(today)]
 
 
 class CointPair:
@@ -41,7 +46,7 @@ class CointPair:
         self.hedge_ratio, self.intercept, self.residuals = cointegration_result
         if kf_flag:
             self.kalman_utils = KalmanUtils(cointegration_result, stock_x, stock_y)
-            self.__override_hedge_intercept_and_residuals()
+            self._override_hedge_intercept_and_residuals()
         self.residuals_data = self.build_residuals_data()
         self.signals: pd.Series = self.initialize_signals()
         self.last_signal = 0
@@ -52,7 +57,7 @@ class CointPair:
         return f"CointPair({self.stock_x.ticker}, {self.stock_y.ticker})"
 
 
-    def __override_hedge_intercept_and_residuals(self) -> None:
+    def _override_hedge_intercept_and_residuals(self) -> None:
         self.residuals = self.kalman_utils.kf_residuals
         self.hedge_ratio, self.intercept = self.kalman_utils.kf_hedge_ratio, self.kalman_utils.kf_intercept
 
@@ -66,10 +71,10 @@ class CointPair:
         return res_data
 
     def update_signal(self, today, no_new_trades_from_date, trade_window_end_date) -> None:
-        self.last_residual, self.last_roll_mean, self.last_roll_std = self.__build_last_resid_mean_std(today)
-        self.last_lower_band, self.last_upper_band = self.__build_last_upper_lower_bound()
-        self.last_signal = self.__compute_last_signal(today, no_new_trades_from_date, trade_window_end_date)
-        self.__update_coint_pair_data(today)
+        self.last_residual, self.last_roll_mean, self.last_roll_std = self._build_last_resid_mean_std(today)
+        self.last_lower_band, self.last_upper_band = self._build_last_upper_lower_bound()
+        self.last_signal = self._compute_last_signal(today, no_new_trades_from_date, trade_window_end_date)
+        self._update_coint_pair_data(today)
 
     def initialize_signals(self):
         return pd.Series(np.zeros(len(self.residuals)), index=self.residuals.index).astype("int32")
@@ -83,7 +88,7 @@ class CointPair:
         return px, py
 
     def get_ticker_x_y(self):
-        return self.stock_x.get_ticker(), self.stock_y.get_ticker()
+        return self.stock_x.ticker, self.stock_y.ticker
 
     def plot_residuals_and_bb_bands(self, trade_action) -> None:
         residual_features_df = self.residuals_data.loc[:, ["Res_MAvg", "Upper_BBand", "Lower_BBand"]]
@@ -96,7 +101,7 @@ class CointPair:
         # figure.write_image("images/img.pdf", format="pdf")
         figure.show()
 
-    def __compute_last_residual(self, today) -> float:
+    def _compute_last_residual(self, today) -> float:
         last_price_x, last_price_y = self.get_todays_price_x_y(today)
 
         if self.kf_flag:
@@ -106,45 +111,45 @@ class CointPair:
         last_residual = last_price_y - self.hedge_ratio * last_price_x - self.intercept
         return last_residual
 
-    def __compute_last_mean_and_std(self, last_residual) -> Tuple:
+    def _compute_last_mean_and_std(self, last_residual) -> Tuple:
         previous_mean = self.residuals_data["Res_MAvg"].values[-1]
         previous_std = self.residuals_data["Res_MStdv"].values[-1]
         first_residual = self.residuals.values[-self.roll_stats_window]
-        online_roll = OnlineRollingStats(window_size=self.roll_stats_window, mean=previous_mean, stdv=previous_std)
+        online_roll = OnlineRollingStats(roll_window_size=self.roll_stats_window, mean=previous_mean, stdv=previous_std)
         new_mean, new_std = online_roll.update(new=last_residual, old=first_residual)
         return new_mean, new_std
 
-    def __build_last_resid_mean_std(self, today) -> Tuple:
-        last_residual = self.__compute_last_residual(today)
-        last_roll_mean, last_roll_std = self.__compute_last_mean_and_std(last_residual)
+    def _build_last_resid_mean_std(self, today) -> Tuple:
+        last_residual = self._compute_last_residual(today)
+        last_roll_mean, last_roll_std = self._compute_last_mean_and_std(last_residual)
         return last_residual, last_roll_mean, last_roll_std
 
-    def __build_last_upper_lower_bound(self) -> Tuple:
+    def _build_last_upper_lower_bound(self) -> Tuple:
         last_upper = self.last_roll_mean + self.num_std_away * self.last_roll_std
         last_lower = self.last_roll_mean - self.num_std_away * self.last_roll_std
         return last_lower, last_upper
 
-    def __update_coint_pair_data(self, today) -> None:
-        self.__update_series(self.residuals, self.last_residual, today)
-        self.__update_series(self.signals, self.last_signal, today)
-        self.__update_df(self.residuals_data,
-                         [self.last_roll_mean, self.last_roll_std, self.last_upper_band, self.last_lower_band],
-                         today)
+    def _update_coint_pair_data(self, today) -> None:
+        self._update_series(self.residuals, self.last_residual, today)
+        self._update_series(self.signals, self.last_signal, today)
+        self._update_df(self.residuals_data,
+                        [self.last_roll_mean, self.last_roll_std, self.last_upper_band, self.last_lower_band],
+                        today)
 
-    def __compute_last_signal(self, today, no_new_trades_from_date, trade_window_end_date) -> int:
+    def _compute_last_signal(self, today, no_new_trades_from_date, trade_window_end_date) -> int:
         previous_signal = self.signals.values[-1]
 
         if today < no_new_trades_from_date:
-            if previous_signal == 0: return self.__evaluate_entry()
-            else: return self.__evaluate_exit(previous_signal)
+            if previous_signal == 0: return self._evaluate_entry()
+            else: return self._evaluate_exit(previous_signal)
 
         elif today < trade_window_end_date:
             if previous_signal == 0: return 0
-            else: return self.__evaluate_exit(previous_signal)
+            else: return self._evaluate_exit(previous_signal)
 
         return 0
 
-    def __evaluate_entry(self) -> int:
+    def _evaluate_entry(self) -> int:
         if self.last_residual > self.last_upper_band:
             return -1
         elif self.last_residual < self.last_lower_band:
@@ -152,7 +157,7 @@ class CointPair:
         else:
             return 0
 
-    def __evaluate_exit(self, previous_signal) -> int:
+    def _evaluate_exit(self, previous_signal) -> int:
         if previous_signal == 1:
             is_exit = self.last_residual > self.last_roll_mean
         else:
@@ -169,69 +174,50 @@ class CointPair:
         return self.signals.iloc[-2]
 
     @staticmethod
-    def __update_series(series, last_item, today) -> None:
+    def _update_series(series, last_item, today) -> None:
         series.loc[pd.to_datetime(today)] = last_item
 
     @staticmethod
-    def __update_df(df, new_row, today) -> None:
+    def _update_df(df, new_row, today) -> None:
         df.loc[today] = new_row
 
 
 class Cointegrator:
 
-    def __init__(self, repository: SPXDataRepository, roll_stats_window: int, num_std_away: float):
-        self.repository: SPXDataRepository = repository
+    def __init__(self, roll_stats_window: int, num_std_away: float):
         self.roll_stats_window: int = roll_stats_window
         self.num_std_away: float = num_std_away
-        self.cointegrated_pairs = self.create_cointegrated_pairs()
 
     @staticmethod
-    def __get_hurst(res: pd.Series):
+    def _get_hurst(res: pd.Series):
         h, _, _ = compute_Hc(res)
         return h
 
     @staticmethod
-    def __coint_check(residuals: np.ndarray) -> bool:
+    def _coint_check(residuals: np.ndarray) -> bool:
         adf_results = adfuller(residuals)
         adf_pvalue = adf_results[1]
         # hurst = self.__get_hurst(residuals)
         return adf_pvalue < 0.01  # and hurst < 0.35
 
-    #def cointegrate(self, stock_x: Stock, stock_y: Stock) -> Union[Tuple, None]:
-    #    stock_x_coint_window_prices = stock_x.window_prices[:self.repository.window.coint_window_end_date]
-     #   stock_y_coint_window_prices = stock_y.window_prices[:self.repository.window.coint_window_end_date]
-    #    hedge_ratio, intercept, residuals = self.__get_hedgeratio_intercept_residuals(stock_x_coint_window_prices,
-      #                                                                                stock_y_coint_window_prices)
-      #  if self.__coint_check(residuals):
-      #      return hedge_ratio, intercept, residuals
 
-    def create_cointegrated_pairs(self) -> List[CointPair]:
+    def create_cointegrated_pairs(self, repos: SPXDataRepository, coint_start: date, coint_end: date) -> List[CointPair]:
         #st = time.time()
-        cointpair_stocks, cointpair_list = [], []
+        cointpair_list = []
         random.seed(5)
-        shuffled_allowed_couples = random.sample(self.repository.allowed_couples,
-                                                     k=len(self.repository.allowed_couples))
+        shuffled_allowed_couples = random.sample(repos.allowed_couples,
+                                                 k=len(repos.allowed_couples))
         x_tickers, y_tickers = self.get_x_y_tickers(shuffled_allowed_couples)
-        coint_info_dict = self.cointegrate(x_tickers, y_tickers,  #coint_start, coint_end
-                                           self.repository.date_manager.coint_start_date,
-                                           self.repository.date_manager.coint_end_date)
+        coint_info_dict = self.cointegrate(repos, x_tickers, y_tickers, coint_start, coint_end)
+
         already_used =  set()
         for (ticker_x, ticker_y), coint_result in coint_info_dict.items():
             if ticker_x in already_used or ticker_y in already_used: continue
             already_used.add(ticker_x)
             already_used.add(ticker_y)
-            stock_x, stock_y = Stock(ticker_x, self.repository), Stock(ticker_y, self.repository)
+            stock_x, stock_y = Stock(ticker_x, repos), Stock(ticker_y, repos)
             cointpair = CointPair(stock_x, stock_y, coint_result.values(), self.roll_stats_window, self.num_std_away)
             cointpair_list.append(cointpair)
-
-        #for tick_x, tick_y in shuffled_allowed_couples:
-         #   if tick_x in cointpair_stocks or tick_y in cointpair_stocks: continue
-         #   stock_x, stock_y = Stock(tick_x, self.repository), Stock(tick_y, self.repository)
-          #  cointegration_result = self.cointegrate(stock_x, stock_y)
-           # if cointegration_result is not None:
-          #      cointpair = CointPair(stock_x, stock_y, cointegration_result, self.roll_stats_window, self.num_std_away)
-          ##      cointpair_stocks += [tick_x, tick_y]
-           #     cointpair_list.append(cointpair)
 
         #ed = time.time()
         #print(f"Time to cointegrate: {ed - st}")
@@ -242,11 +228,9 @@ class Cointegrator:
     def get_x_y_tickers(couples):
         return [c[0] for c in couples], [c[1] for c in couples]
 
-    def cointegrate(self, x_tickers, y_tickers, start, end):
-        #xs = repos.filter_price_data(start, end, x_tickers)
-        #ys = repos.filter_price_data(start, end, y_tickers)
-        xs = self.repository.current_price_data.loc[start:end, x_tickers]
-        ys = self.repository.current_price_data.loc[start:end, y_tickers]
+    def cointegrate(self, repos, x_tickers, y_tickers, start, end):
+        xs = repos.filter_price_data(start, end, x_tickers)
+        ys = repos.filter_price_data(start, end, y_tickers)
         xs_mean = np.mean(xs.values, axis=0, keepdims=True)
         xs_norm = xs.values - xs_mean
         ys_mean = np.mean(ys.values, axis=0, keepdims=True)
@@ -263,7 +247,7 @@ class Cointegrator:
                     "intercept": intercept[i],
                     "residuals": residuals_df.loc[:, i]
                 }
-            for i in range(xs.shape[1]) if self.__coint_check(residuals_df.loc[:, i].values)
+            for i in range(xs.shape[1]) if self._coint_check(residuals_df.loc[:, i].values)
         }
 
         return coint_info_dict

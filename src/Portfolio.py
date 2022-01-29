@@ -67,17 +67,19 @@ class Portfolio:
             traded_pair = self.set_traded_pair(coint_pair, today, trade_action)
             self.update_portfolio_data(traded_pair)
             self.insert_in_holdings(coint_pair, traded_pair)
-            if plot: coint_pair.plot_residuals_and_bb_bands(trade_action)
+            if plot:
+                coint_pair.plot_residuals_and_bb_bands(trade_action)
 
         elif trade_action in ("CloseLong", "CloseShort", "HoldLong", "HoldShort"):
             traded_pair = self.get_traded_pair_from_holdings(coint_pair)
             self.update_traded_pair(traded_pair, coint_pair, today, trade_action)
-            self.update_portfolio_current_pnl(traded_pair, trade_action)
+            self.update_portfolio_current_pnl(traded_pair=traded_pair)
 
             if trade_action in ("CloseLong", "CloseShort"):
                 self.update_portfolio_realized_pnl(closing_pair=traded_pair)
                 self.remove_from_holdings(coint_pair)
-                if plot and traded_pair.pair_current_holding_pnl<0: coint_pair.plot_residuals_and_bb_bands(trade_action)
+                if plot and traded_pair.pair_current_holding_pnl<0:
+                    coint_pair.plot_residuals_and_bb_bands(trade_action)
 
         elif trade_action == "Pass":
             """ do nothing """
@@ -118,7 +120,7 @@ class Portfolio:
         self.__update_pf_free_cash(traded_pair)
         self.__update_pf_locked_cash(traded_pair)
 
-    def update_portfolio_current_pnl(self, traded_pair: TradedPair, trade_action: str) -> None:
+    def update_portfolio_current_pnl(self, traded_pair: TradedPair) -> None:
         self.current_pnl += (traded_pair.pair_current_holding_pnl - traded_pair.pair_prev_holding_pnl)
 
     def update_portfolio_realized_pnl(self, closing_pair: TradedPair) -> None:

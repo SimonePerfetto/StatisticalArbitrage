@@ -6,18 +6,18 @@ from pathlib import Path
 
 class DateManager:
 
-    def __init__(self, backtest_start_date: date,  coint_window: int, trading_window: int):
+    def __init__(self, backtest_start_date: date,  coint_window: int, trade_window: int):
         self.backtest_start_date: date = backtest_start_date
         self.coint_window: int = coint_window
-        self.trade_window: int = trading_window
+        self.trade_window: int = trade_window
         self.all_dates: pd.Series = self.__load_all_available_dates()
         self.backtest_end_date: date = self.get_backtest_end_date()
-        self.no_new_trades_days: int = 15  # might become parameter later
+        self.no_new_trades_days: int = 10  # might become parameter later
         self.coint_start_date: Union[date, None] = None
         self.coint_end_date: Union[date, None] = None
+        self.no_new_trades_from_date: Union[date, None] = None
         self.trade_start_date: Union[date, None] = None
         self.trade_end_date: Union[date, None] = None
-        self.no_new_trades_from_date: Union[date, None] = None
         self.__define_key_dates()
 
     @staticmethod

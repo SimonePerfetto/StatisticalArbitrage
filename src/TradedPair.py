@@ -88,4 +88,4 @@ class TradedPair:
                                          (self.short_leg.current_holding_pnl - self.short_leg.prev_holding_pnl)
 
     def __repr__(self):
-        return f"PairHolding[{self.long_leg}, {self.short_leg}]"
+        return f"TradedPair[{self.long_leg}, {self.short_leg}]"
