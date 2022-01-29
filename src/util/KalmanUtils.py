@@ -14,7 +14,7 @@ class KalmanUtils:
         ols_hedge_ratio, ols_intercept, ols_residuals = coint_res
         delta = 1e-3
         trans_cov = delta / (1 - delta) * np.eye(2)
-        obs_mat = np.vstack([stock_x.window_prices.iloc[:len(ols_residuals)],
+        obs_mat = np.vstack([stock_x.price_ts.loc[ols_residuals.index].values,
                              np.ones(len(ols_residuals))]).T[:, np.newaxis]
 
         kf_model = KalmanFilter(n_dim_obs=1, n_dim_state=2, initial_state_mean=(ols_hedge_ratio, ols_intercept),
@@ -22,16 +22,14 @@ class KalmanUtils:
                                 initial_state_covariance=np.ones((2, 2)), transition_matrices=np.eye(2),
                                 observation_matrices=obs_mat, observation_covariance=1.0,
                                 transition_covariance=trans_cov)
-
-        state_means, state_covs = kf_model.filter(stock_y.window_prices.iloc[:len(ols_residuals)].values)
+        state_means, state_covs = kf_model.filter(stock_y.price_ts.loc[ols_residuals.index].values)
         return kf_model, state_means, state_covs
 
     def get_kalman_results(self, coint_res, stock_x, stock_y) -> Tuple:
         _, _, ols_residuals = coint_res
-        kf_residuals_np = stock_y.window_prices.values[:len(ols_residuals)] - \
-                          self.state_means[:, 0] * stock_x.window_prices.values[:len(ols_residuals)] - \
-                          self.state_means[:, 1]
-        kf_residuals = pd.Series(kf_residuals_np, index=ols_residuals.index)
+        kf_residuals = stock_y.price_ts.loc[ols_residuals.index] - \
+                   self.state_means[:, 0] * stock_x.price_ts.loc[ols_residuals.index] - \
+                   self.state_means[:, 1]
         kf_hedge_ratio, kf_intercept = self.state_means[-1, :]
         return kf_residuals, kf_hedge_ratio, kf_intercept
 
