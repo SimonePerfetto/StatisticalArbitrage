@@ -45,11 +45,12 @@ class SignalBuilder:
         self._roll_stats_window = roll_stats_window
         self._num_std_away = num_std_away
         self._ols_params = ols_params
-        self._residual_data = self._build_residual_data(ols_params)
+        self.residual_data = self._build_residual_data(ols_params)
         self._last_residual = ols_params.residuals.values[-1]
-        self._last_roll_mean, self._last_roll_std, self._last_upper_band, self._last_lower_band = self._residual_data.iloc[-1, :]
+        self._last_roll_mean, self._last_roll_std, self._last_upper_band, self._last_lower_band = self.residual_data.iloc[-1, :]
         self._signals = self._initialize_signals()
         self._last_signal = self.signals[-1]
+        a=10
 
     @property
     def roll_stats_window(self) -> float: return self._roll_stats_window
@@ -57,10 +58,6 @@ class SignalBuilder:
     def num_std_away(self) -> float: return self._num_std_away
     @property
     def ols_params(self) -> OLSParams: return self._ols_params
-    @property
-    def residual_data(self) -> pd.DataFrame: return self._residual_data
-    @residual_data.setter
-    def residual_data(self, value) -> None: self._residual_data = value
     @property
     def signals(self) -> pd.Series: return self._signals
     @signals.setter
@@ -113,8 +110,7 @@ class SignalBuilder:
     def _initialize_signals(self) -> pd.Series:
         return pd.Series(np.zeros(len(self.ols_params.residuals)), index=self.ols_params.residuals.index).astype("int32")
 
-    def _compute_last_residual(self,  # today: date,
-                               last_px: float, last_py: float) -> float:
+    def _compute_last_residual(self, last_px: float, last_py: float) -> float:
         if self.ols_params.kf_flag:
             self.ols_params.kalman_utils.update_kalman_hedge_intercept(last_px, last_py)
             self.ols_params.hedge_ratio = self.ols_params.kalman_utils.kf_hedge_ratio
@@ -136,17 +132,15 @@ class SignalBuilder:
         self.last_upper_band = self.last_roll_mean + self.num_std_away * self.last_roll_std
         self.last_lower_band = self.last_roll_mean - self.num_std_away * self.last_roll_std
 
-        self.ols_params.residuals = self.ols_params.residuals.append(pd.Series(data=self.last_residual, index=[today]))
-        self.residual_data = self.residual_data.append(
-            pd.Series(data=[self.last_roll_mean, self.last_roll_std, self.last_upper_band, self.last_lower_band],
-                      index=self.residual_data.columns, name=today)
-        )
+        self.ols_params.residuals = self.ols_params.residuals.append(pd.Series(data=self.last_residual,
+                                                                               index=[pd.to_datetime(today)]))
+        self.residual_data.loc[today] = [self.last_roll_mean, self.last_roll_std, self.last_upper_band, self.last_lower_band]
 
     def update_signal(self, today, no_new_trades_from_date, trade_window_end_date) -> None:
         self.last_signal = self._compute_last_signal(today, no_new_trades_from_date, trade_window_end_date)
-        self.signals = self.signals.append(pd.Series(data=self.last_residual, index=[today]))
+        self.signals = self.signals.append(pd.Series(data=self.last_signal, index=[today]))
 
-    def _compute_last_signal(self, today, no_new_trades_from_date, trade_window_end_date) -> int: #TODO: still maybe signalbuilder
+    def _compute_last_signal(self, today, no_new_trades_from_date, trade_window_end_date) -> int:
         previous_signal = self.signals.values[-1]
 
         if today < no_new_trades_from_date:
@@ -174,65 +168,33 @@ class SignalBuilder:
             is_exit = self.last_residual < self.last_roll_mean
         return previous_signal * (1 - is_exit)
 
-    def override_signal(self, signal_value): #TODO: still maybe signalbuilder
+    def override_signal(self, signal_value) -> None:
         self.signals.iloc[-1] = signal_value
 
-    def get_last_signal(self): #TODO: still maybe signalbuilder
+    def get_last_signal(self) -> int:
         return self.signals.iloc[-1]
 
-    def get_penultimate_signal(self): #TODO: still maybe signalbuilder
+    def get_penultimate_signal(self) -> int:
         return self.signals.iloc[-2]
 
+
 class CointPair:
-    def __init__(self, stock_x: Stock, stock_y: Stock, cointegration_result: List,
-                 roll_stats_window: int, num_std_away: float, kf_flag=True):
-        self.roll_stats_window = roll_stats_window
-        self.num_std_away = num_std_away
-        self.stock_x = stock_x
-        self.stock_y = stock_y
-        self.kf_flag = kf_flag
-        self.hedge_ratio, self.intercept, self.residuals = cointegration_result
-        if kf_flag:
-            self.kalman_utils = KalmanUtils(cointegration_result, stock_x, stock_y)
-            self._override_hedge_intercept_and_residuals()
-        self.residuals_data = self.build_residuals_data()
-        self.signals: pd.Series = self.initialize_signals()
-        self.last_signal = 0
-        self.last_residual, self.last_roll_mean, self.last_roll_std = None, None, None
-        self.last_lower_band, self.last_upper_band = None, None
+    def __init__(self, stock_x: Stock, stock_y: Stock, signal_builder: SignalBuilder):
+        self._stock_x = stock_x
+        self._stock_y = stock_y
+        self._signal_builder = signal_builder
 
     def __repr__(self):
         return f"CointPair({self.stock_x.ticker}, {self.stock_y.ticker})"
 
-    # TODO: DONE
-    def _override_hedge_intercept_and_residuals(self) -> None:
-        self.residuals = self.kalman_utils.kf_residuals
-        self.hedge_ratio, self.intercept = self.kalman_utils.kf_hedge_ratio, self.kalman_utils.kf_intercept
-
-    # TODO: DONE
-    def build_residuals_data(self):
-        res_data = pd.DataFrame(index=self.residuals.index)
-        res_data["Res_MAvg"] = self.residuals.rolling(self.roll_stats_window).mean()
-        res_data["Res_MStdv"] = self.residuals.rolling(self.roll_stats_window).std()
-        res_data["Upper_BBand"] = res_data["Res_MAvg"] + self.num_std_away * res_data["Res_MStdv"]
-        res_data["Lower_BBand"] = res_data["Res_MAvg"] - self.num_std_away * res_data["Res_MStdv"]
-
-        return res_data
-
-    # TODO: DONE
-    def initialize_signals(self):
-        return pd.Series(np.zeros(len(self.residuals)), index=self.residuals.index).astype("int32")
-
-    # TODO: DONE
-    def update_signal(self, today, no_new_trades_from_date, trade_window_end_date) -> None:
-        self.last_residual, self.last_roll_mean, self.last_roll_std = self._build_last_resid_mean_std(today)
-        self.last_lower_band, self.last_upper_band = self._build_last_upper_lower_bound()
-        self.last_signal = self._compute_last_signal(today, no_new_trades_from_date, trade_window_end_date)
-        self._update_coint_pair_data(today)
-
-    # TODO: change as appropriate
-    def get_hedge_ratio(self):
-        return self.hedge_ratio
+    @property
+    def stock_x(self) -> Stock: return self._stock_x
+    @property
+    def stock_y(self) -> Stock: return self._stock_y
+    @property
+    def signal_builder(self) -> SignalBuilder: return self._signal_builder
+    @property
+    def hedge_ratio(self) -> float: return self.signal_builder.ols_params.hedge_ratio
 
     def get_todays_price_x_y(self, today: date) -> Tuple:
         px = self.stock_x.get_todays_price(today)
@@ -242,112 +204,17 @@ class CointPair:
     def get_ticker_x_y(self):
         return self.stock_x.ticker, self.stock_y.ticker
 
-    # TODO: DONE
-    def plot_residuals_and_bb_bands(self, trade_action) -> None:
-        residual_features_df = self.residuals_data.loc[:, ["Res_MAvg", "Upper_BBand", "Lower_BBand"]]
-        residual_features_df = residual_features_df.insert(0, "Res", self.residuals).dropna(axis=0)
-        residual_features_df.columns = ["Residuals", "Residuals MA", "Residuals Upper BB", "Residuals Lower BB"]
-        figure = residual_features_df.dropna(axis=0)\
-            .iplot(colorscale="polar", theme="white", asFigure=True,
-                   title=f"{trade_action} {self} - Residuals, BolBands, Residuals MA", xTitle="Time")
-        figure.update_layout(font=dict(family="Computer Modern"))
-        # figure.write_image("images/img.pdf", format="pdf")
-        figure.show()
-
-    # TODO: DONE
-    def _compute_last_residual(self, today) -> float:
-        last_price_x, last_price_y = self.get_todays_price_x_y(today)
-
-        #TODO: this part needs to use new OLSParams
-        if self.kf_flag:
-            self.kalman_utils.update_kalman_hedge_intercept(last_price_x, last_price_y)
-            self.hedge_ratio, self.intercept = self.kalman_utils.kf_hedge_ratio, self.kalman_utils.kf_intercept
-
-        ##TODO: this might be assigned to signalbuilder (field maybe?)
-        last_residual = last_price_y - self.hedge_ratio * last_price_x - self.intercept
-        return last_residual
-
-    # TODO: DONE
-    def _compute_last_mean_and_std(self, last_residual) -> Tuple: #TODO: this is at signalbuilder level as it uses roll window
-        previous_mean = self.residuals_data["Res_MAvg"].values[-1]
-        previous_std = self.residuals_data["Res_MStdv"].values[-1]
-        first_residual = self.residuals.values[-self.roll_stats_window]
-        online_roll = OnlineRollingStats(roll_window_size=self.roll_stats_window, mean=previous_mean, stdv=previous_std)
-        new_mean, new_std = online_roll.update(new=last_residual, old=first_residual)
-        return new_mean, new_std
-
-    # TODO: DONE
-    def _build_last_resid_mean_std(self, today) -> Tuple:
-        last_residual = self._compute_last_residual(today)
-        last_roll_mean, last_roll_std = self._compute_last_mean_and_std(last_residual)
-        return last_residual, last_roll_mean, last_roll_std
-
-    # TODO: DONE
-    def _build_last_upper_lower_bound(self) -> Tuple:
-        last_upper = self.last_roll_mean + self.num_std_away * self.last_roll_std
-        last_lower = self.last_roll_mean - self.num_std_away * self.last_roll_std
-        return last_lower, last_upper
-
-    # TODO: DONE
-    def _update_coint_pair_data(self, today) -> None:
-        self._update_series(self.residuals, self.last_residual, today)
-        self._update_series(self.signals, self.last_signal, today)
-        self._update_df(self.residuals_data,
-                        [self.last_roll_mean, self.last_roll_std, self.last_upper_band, self.last_lower_band],
-                        today)
-
-    # TODO: DONE
-    def _compute_last_signal(self, today, no_new_trades_from_date, trade_window_end_date) -> int: #TODO: still maybe signalbuilder
-        previous_signal = self.signals.values[-1]
-
-        if today < no_new_trades_from_date:
-            if previous_signal == 0: return self._evaluate_entry()
-            else: return self._evaluate_exit(previous_signal)
-
-        elif today < trade_window_end_date:
-            if previous_signal == 0: return 0
-            else: return self._evaluate_exit(previous_signal)
-
-        return 0
-
-    # TODO: DONE
-    def _evaluate_entry(self) -> int: #TODO: still maybe signalbuilder
-        if self.last_residual > self.last_upper_band:
-            return -1
-        elif self.last_residual < self.last_lower_band:
-            return 1
-        else:
-            return 0
-
-    # TODO: DONE
-    def _evaluate_exit(self, previous_signal) -> int: #TODO: still maybe signalbuilder
-        if previous_signal == 1:
-            is_exit = self.last_residual > self.last_roll_mean
-        else:
-            is_exit = self.last_residual < self.last_roll_mean
-        return previous_signal * (1 - is_exit)
-
-    # TODO: DONE
     def override_signal(self, signal_value):
-        self.signals.iloc[-1] = signal_value
+        self.signal_builder.last_signal = signal_value
+        signals_series = self.signal_builder.signals.copy()
+        signals_series.iloc[-1] = signal_value
+        self.signal_builder.signals = signals_series
 
-    # TODO: DONE
     def get_last_signal(self):
-        return self.signals.iloc[-1]
+        return self.signal_builder.signals.iloc[-1]
 
-    # TODO: DONE
     def get_penultimate_signal(self):
-        return self.signals.iloc[-2]
-
-    # TODO: DONE
-    @staticmethod
-    def _update_series(series, last_item, today) -> None:
-        series.loc[pd.to_datetime(today)] = last_item
-
-    # TODO: DONE
-    @staticmethod
-    def _update_df(df, new_row, today) -> None:
-        df.loc[today] = new_row
+        return self.signal_builder.signals.iloc[-2]
 
 
 class Cointegrator:
@@ -384,7 +251,9 @@ class Cointegrator:
             already_used.add(ticker_x)
             already_used.add(ticker_y)
             stock_x, stock_y = Stock(ticker_x, repos), Stock(ticker_y, repos)
-            cointpair = CointPair(stock_x, stock_y, coint_result.values(), self.roll_stats_window, self.num_std_away)
+            ols_params = OLSParams(coint_result.values(), stock_x, stock_y)
+            signal_builder = SignalBuilder(self.roll_stats_window, self.num_std_away, ols_params)
+            cointpair = CointPair(stock_x, stock_y, signal_builder)
             cointpair_list.append(cointpair)
         #ed = time.time()
         #print(f"Time to cointegrate: {ed - st}")
