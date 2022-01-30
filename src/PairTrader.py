@@ -24,6 +24,8 @@ class PairTrader:
         self.n_bad_trades_dict = {}
         self.n_good_trades_dict = {}
 
+    def __repr__(self): return "PairTrader"
+
     def init_data_repository(self) -> SPXDataRepository:
         data_repos = SPXDataRepository(file_name="closes.csv")
         coint_start, coint_end = self.date_manager.coint_start_date, self.date_manager.coint_end_date
@@ -41,8 +43,10 @@ class PairTrader:
 
     def update_pair_signals(self, today) -> None:
         for cointpair in self.coint_pairs:
-            cointpair.update_signal(today, self.date_manager.no_new_trades_from_date,
-                                    self.date_manager.trade_end_date)
+            last_px, last_py = cointpair.get_todays_price_x_y(today)
+            cointpair.signal_builder.update_residuals_data(last_px, last_py, today)
+            cointpair.signal_builder.update_signal(today, self.date_manager.no_new_trades_from_date,
+                                                   self.date_manager.trade_end_date)
 
     def init(self) -> None:
         self.coint_pairs: List[CointPair] = self.get_coint_pairs()
