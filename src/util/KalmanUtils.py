@@ -2,10 +2,10 @@ import numpy as np
 from pykalman import KalmanFilter
 from typing import Tuple, List
 import pandas as pd
-from src.Cointegrator import Stock
+from src.Stock import Stock
+
 
 class KalmanUtils:
-
     def __init__(self, coint_res: List, stock_x: Stock, stock_y: Stock):
         self._kf_model, self._state_means, self._state_covs = self.build_kalman_features(coint_res, stock_x, stock_y)
         self._kf_residuals, self._kf_hedge_ratio, self._kf_intercept = self.get_kalman_results(coint_res, stock_x, stock_y)
@@ -20,25 +20,25 @@ class KalmanUtils:
     def state_means(self) -> np.ndarray: return self._state_means
 
     @state_means.setter
-    def state_means(self, value) -> None: self.state_means = value
+    def state_means(self, value) -> None: self._state_means = value
 
     @property
     def state_covs(self) -> np.ndarray: return self._state_covs
 
     @state_covs.setter
-    def state_covs(self, value) -> None: self.state_covs = value
+    def state_covs(self, value) -> None: self._state_covs = value
 
     @property
     def kf_hedge_ratio(self) -> float: return self._kf_hedge_ratio
 
     @kf_hedge_ratio.setter
-    def kf_hedge_ratio(self, value) -> None: self.kf_hedge_ratio = value
+    def kf_hedge_ratio(self, value) -> None: self._kf_hedge_ratio = value
 
     @ property
     def kf_intercept(self) -> float: return self._kf_intercept
 
     @kf_intercept.setter
-    def kf_intercept(self, value) -> None: self.kf_intercept = value
+    def kf_intercept(self, value) -> None: self._kf_intercept = value
 
     @staticmethod
     def build_kalman_features(coint_res, stock_x, stock_y) -> Tuple:
