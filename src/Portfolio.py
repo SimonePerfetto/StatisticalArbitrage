@@ -36,7 +36,7 @@ class Portfolio:
         for coint_pair in coint_pairs:
             trade_action = self.formulate_trade_action_from_signal(coint_pair)
             if trade_action in ("OpenLong", "OpenShort") and self.is_reached_max_n_active_pairs():
-                coint_pair.set_signal(signal_value=0)
+                coint_pair.override_signal(signal_value=0)
                 trade_action = "Pass"
             self.execute_trade_action(coint_pair, today, trade_action)
 
@@ -87,9 +87,8 @@ class Portfolio:
             raise ValueError(f"Trade action: {trade_action} not valid.")
 
     def set_traded_pair(self, coint_pair: CointPair, today: date, trade_action: str) -> TradedPair:
-        hedge_ratio = coint_pair.get_hedge_ratio()
         px, py = coint_pair.get_todays_price_x_y(today)
-        nx, ny = self.__units_finder(py, hedge_ratio)
+        nx, ny = self.__units_finder(py, coint_pair.hedge_ratio)
         ticker_x, ticker_y = coint_pair.get_ticker_x_y()
 
         if trade_action == "OpenLong":  # long pair means buy 1 unit of y, sell hedgeratio units of x
