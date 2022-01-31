@@ -68,7 +68,7 @@ class Portfolio:
             self.update_portfolio_data(traded_pair)
             self.insert_in_holdings(coint_pair, traded_pair)
             if plot:
-                coint_pair.plot_residuals_and_bb_bands(trade_action)
+                coint_pair.signal_builder.plot_residuals_and_bb_bands(trade_action)
 
         elif trade_action in ("CloseLong", "CloseShort", "HoldLong", "HoldShort"):
             traded_pair = self.get_traded_pair_from_holdings(coint_pair)
@@ -78,8 +78,8 @@ class Portfolio:
             if trade_action in ("CloseLong", "CloseShort"):
                 self.update_portfolio_realized_pnl(closing_pair=traded_pair)
                 self.remove_from_holdings(coint_pair)
-                if plot and traded_pair.pair_current_holding_pnl<0:
-                    coint_pair.plot_residuals_and_bb_bands(trade_action)
+                if plot and traded_pair.pair_current_holding_pnl < 0:
+                    coint_pair.signal_builder.plot_residuals_and_bb_bands(trade_action)
 
         elif trade_action == "Pass":
             """ do nothing """
