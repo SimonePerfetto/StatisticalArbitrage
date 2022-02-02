@@ -9,7 +9,7 @@ from hurst import compute_Hc
 from datetime import date
 import numpy as np
 from src.util.KalmanUtils import KalmanUtils
-
+import cufflinks as cf
 
 class OLSParams:
     def __init__(self, cointegration_result: List, stock_x: Stock, stock_y: Stock, kf_flag: bool = True):
@@ -50,7 +50,6 @@ class SignalBuilder:
         self._last_roll_mean, self._last_roll_std, self._last_upper_band, self._last_lower_band = self.residual_data.iloc[-1, :]
         self._signals = self._initialize_signals()
         self._last_signal = self.signals[-1]
-        a=10
 
     @property
     def roll_stats_window(self) -> float: return self._roll_stats_window
@@ -96,17 +95,6 @@ class SignalBuilder:
 
         return res_data
 
-    def plot_residuals_and_bb_bands(self, trade_action) -> None:
-        residual_features_df = self.residual_data.loc[:, ["Res_MAvg", "Upper_BBand", "Lower_BBand"]]
-        residual_features_df = residual_features_df.insert(0, "Res", self.ols_params.residuals).dropna(axis=0)
-        residual_features_df.columns = ["Residuals", "Residuals MA", "Residuals Upper BB", "Residuals Lower BB"]
-        figure = residual_features_df.dropna(axis=0)\
-            .iplot(colorscale="polar", theme="white", asFigure=True,
-                   title=f"{trade_action} {self} - Residuals, BolBands, Residuals MA", xTitle="Time")
-        figure.update_layout(font=dict(family="Computer Modern"))
-        # figure.write_image("images/img.pdf", format="pdf")
-        figure.show()
-
     def _initialize_signals(self) -> pd.Series:
         return pd.Series(np.zeros(len(self.ols_params.residuals)), index=self.ols_params.residuals.index).astype("int32")
 
@@ -134,11 +122,11 @@ class SignalBuilder:
 
         self.ols_params.residuals = self.ols_params.residuals.append(pd.Series(data=self.last_residual,
                                                                                index=[pd.to_datetime(today)]))
-        self.residual_data.loc[today] = [self.last_roll_mean, self.last_roll_std, self.last_upper_band, self.last_lower_band]
+        self.residual_data.loc[pd.to_datetime(today)] = [self.last_roll_mean, self.last_roll_std, self.last_upper_band, self.last_lower_band]
 
     def update_signal(self, today, no_new_trades_from_date, trade_window_end_date) -> None:
         self.last_signal = self._compute_last_signal(today, no_new_trades_from_date, trade_window_end_date)
-        self.signals = self.signals.append(pd.Series(data=self.last_signal, index=[today]))
+        self.signals = self.signals.append(pd.Series(data=self.last_signal, index=[pd.to_datetime(today)]))
 
     def _compute_last_signal(self, today, no_new_trades_from_date, trade_window_end_date) -> int:
         previous_signal = self.signals.values[-1]
@@ -216,6 +204,18 @@ class CointPair:
     def get_penultimate_signal(self):
         return self.signal_builder.signals.iloc[-2]
 
+    def plot_residuals_and_bb_bands(self, trade_action) -> None:
+        residual_features_df = self.signal_builder.residual_data.loc[:, ["Res_MAvg", "Upper_BBand", "Lower_BBand"]]
+        residual_features_df["Res"] = self.signal_builder.ols_params.residuals
+        residual_features_df.columns = ["Residuals", "Residuals MA", "Residuals Upper BB", "Residuals Lower BB"]
+        figure = residual_features_df.dropna(axis=0)\
+            .iplot(colorscale="polar", theme="white", asFigure=True,
+                   title=f"{trade_action} {self} - Residuals, BolBands, Residuals MA", xTitle="Time")
+        figure.update_layout(font=dict(family="Computer Modern"))
+        # figure.write_image("images/img.pdf", format="pdf")
+        figure.show()
+        #f = pd.concat([self.stock_x.price_ts, self.stock_y.price_ts], axis=1).iloc[:240, :].iplot(asFigure=True, )
+        #f.show()
 
 class Cointegrator:
 
