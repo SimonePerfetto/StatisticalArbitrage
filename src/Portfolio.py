@@ -24,7 +24,6 @@ class Portfolio:
         self.n_bad_trades: int = 0
 
     def __repr__(self):
-        #CurrCash: {self.pf_free_cash}, CommCapital: {self.pf_committed_capital},
         return f"Portfolio(FreeCash: {round(self.pf_free_cash)}, " \
                f"CommCapital: {round(self.pf_committed_capital)}, " \
                f"Good/Bad Trades:{self.n_good_trades}/{self.n_bad_trades}, " \
@@ -62,13 +61,13 @@ class Portfolio:
         else:
             raise ValueError(f"Unexpected combination of previous signal: {prev_sign}, current signal: {curr_sign}")
 
-    def execute_trade_action(self, coint_pair: CointPair, today: date, trade_action: str, plot=False) -> None:
+    def execute_trade_action(self, coint_pair: CointPair, today: date, trade_action: str, plot=True) -> None:
         if trade_action in ("OpenLong", "OpenShort"):
             traded_pair = self.set_traded_pair(coint_pair, today, trade_action)
             self.update_portfolio_data(traded_pair)
             self.insert_in_holdings(coint_pair, traded_pair)
             if plot:
-                coint_pair.signal_builder.plot_residuals_and_bb_bands(trade_action)
+                coint_pair.plot_residuals_and_bb_bands(trade_action)
 
         elif trade_action in ("CloseLong", "CloseShort", "HoldLong", "HoldShort"):
             traded_pair = self.get_traded_pair_from_holdings(coint_pair)
@@ -79,7 +78,7 @@ class Portfolio:
                 self.update_portfolio_realized_pnl(closing_pair=traded_pair)
                 self.remove_from_holdings(coint_pair)
                 if plot and traded_pair.pair_current_holding_pnl < 0:
-                    coint_pair.signal_builder.plot_residuals_and_bb_bands(trade_action)
+                    coint_pair.plot_residuals_and_bb_bands(trade_action)
 
         elif trade_action == "Pass":
             """ do nothing """
