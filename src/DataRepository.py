@@ -2,7 +2,6 @@ import itertools
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict
-import dask.dataframe as dd
 import pandas as pd
 import yfinance as yf
 from abc import ABC, abstractmethod
@@ -30,9 +29,16 @@ class SPXDataRepository(DataRepositoryBase):
     def get_price_data(self) -> pd.DataFrame:
         return pd.read_csv(Path(f"../data/{self.file_name}"), parse_dates=["Date"], dayfirst=True).set_index("Date")
 
-    def filter_price_data(self, start: date, end: date, tickers_list=None):
-        if tickers_list is None: return self.price_data.loc[start:end, :]
-        else: return self.price_data.loc[start:end, tickers_list]
+    def filter_price_data(
+            self,
+            start: date,
+            end: date,
+            tickers_list=None
+    ) -> pd.DataFrame:
+        if tickers_list is None:
+            return self.price_data.loc[start:end, :]
+        else:
+            return self.price_data.loc[start:end, tickers_list]
 
     @staticmethod
     def _get_misc_data_from_web() -> pd.DataFrame:
@@ -45,18 +51,33 @@ class SPXDataRepository(DataRepositoryBase):
     def _download_price_data_from_yfinance(self) -> None:
         start, end = datetime(2008, 1, 2), datetime(2021, 10, 29)
         # s&p500 components price data
-        data = yf.download(self.snp_info.ticker.to_list(), start=start, end=end)
+        data = yf.download(
+            tickers=self.snp_info.ticker.to_list(),
+            start=start,
+            end=end
+        )
         idx = pd.IndexSlice
         data.loc[:, idx["Adj Close", :]].droplevel(0, axis=1).dropna(axis=0, how="all") \
             .to_csv(Path(f"../data/closes.csv"))
         data.loc[:, idx["Volume", :]].droplevel(0, axis=1).dropna(axis=0, how="all"). \
             to_csv(Path(f"../data/volumes.csv"))
 
-    def _get_existing_tickers(self, start, end) -> List:
+    def _get_existing_tickers(
+            self,
+            start: date,
+            end: date
+    ) -> List:
         return self.price_data.loc[start:end].dropna(axis=1).columns
 
-    def _get_current_cluster_dict(self, start, end) -> Dict:
-        existing_tickers = self._get_existing_tickers(start, end)
+    def _get_current_cluster_dict(
+            self,
+            start: date,
+            end: date
+    ) -> Dict[str, List[str]]:
+        existing_tickers = self._get_existing_tickers(
+            start=start,
+            end=end
+        )
         existing_snp_info = self.snp_info.loc[self.snp_info.ticker.isin(existing_tickers)]
         return {sector: list(tickers) for sector, tickers in existing_snp_info.groupby('sector')['ticker']}
 
@@ -65,11 +86,15 @@ class SPXDataRepository(DataRepositoryBase):
                 for couple in itertools.combinations(ticker_list, 2) if len(ticker_list) > 1]
 
     # TODO: might become an abstract method to be implemented
-    def update_train_data(self, start: date, end: date) -> None:
-        self.current_cluster_dict = self._get_current_cluster_dict(start, end)
+    def update_train_data(
+            self,
+            start: date,
+            end: date
+    ) -> None:
+        self.current_cluster_dict = self._get_current_cluster_dict(start=start, end=end)
         self.allowed_couples = self._get_allowed_couples()
 
 
 class CryptoDataRepository(DataRepositoryBase):
-    def get_price_data(self) -> dd.DataFrame:
+    def get_price_data(self) -> pd.DataFrame:
         raise NotImplementedError("Not implemented yet")

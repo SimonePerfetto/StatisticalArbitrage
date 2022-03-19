@@ -1,10 +1,14 @@
 import pandas as pd
-
+from datetime import date
 from src.DataRepository import SPXDataRepository
 
 
 class Stock:
-    def __init__(self, ticker: str, repos: SPXDataRepository):
+    def __init__(
+            self,
+            ticker: str,
+            repos: SPXDataRepository
+    ):
         self._ticker = ticker
         self._price_ts = self.get_price_ts(repos)
 
@@ -19,8 +23,14 @@ class Stock:
     def price_ts(self) -> pd.Series:
         return self._price_ts
 
-    def get_price_ts(self, repos) -> pd.Series:
+    def get_price_ts(
+            self,
+            repos: SPXDataRepository
+    ) -> pd.Series:
         return repos.price_data.loc[:, self.ticker]
 
-    def get_todays_price(self, today) -> float:
+    def get_todays_price(
+            self,
+            today: date
+    ) -> float:
         return self.price_ts.loc[pd.to_datetime(today)]
