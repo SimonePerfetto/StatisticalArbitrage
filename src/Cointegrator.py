@@ -317,7 +317,7 @@ class CointPair:
             .iplot(colorscale="polar", theme="white", asFigure=True,
                    title=f"{trade_action} {self} - Residuals, BolBands, Residuals MA", xTitle="Time")
         figure.update_layout(font=dict(family="Computer Modern"))
-        figure.write_image("images/res.pdf", format="pdf")
+        figure.write_image("images/res.svg", format="svg")
         figure.show()
         f = pd.concat(
             [
@@ -327,7 +327,7 @@ class CointPair:
             axis=1
         ).iloc[:240, :].iplot(asFigure=True, )
         f.show()
-        f.write_image("images/cointpair.pdf", format="pdf")
+        f.write_image("images/cointpair.svg", format="svg")
 
 class Cointegrator:
 

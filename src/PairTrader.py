@@ -104,7 +104,7 @@ class PairTrader:
 
 
         f = pd.DataFrame(self.total_pnl_dict.values(), index=self.total_pnl_dict.keys()).iplot(asFigure=True, )
-        f.write_image("images/backtest.pdf", format="pdf")
+        f.write_image("images/backtest.svg", format="svg")
         f.show()
 
 
