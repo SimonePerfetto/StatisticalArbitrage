@@ -22,7 +22,7 @@ To corroborate the cointegration property of two stocks with an economic rationa
 Below an example of two (normalized) price time series that pass the cointegration test, ADBE (Adobe Inc.) and ANSS (Ansys). Both companies develop software for product design.
 
 
-![](/src/images/cointpair.pdf)
+![](https://github.com/SimonePerfetto/StatisticalArbitrage/blob/master/src/images/cointpair.pdf)
 
 ## Trading Strategy
 
@@ -37,13 +37,13 @@ The actual code uses a more sophisticated logic exploiting some smoothing proper
 
 Below a plot with time series of residuals, moving average and Bollinger bands.
 
-![](/src/images/res.pdf)
+![](https://github.com/SimonePerfetto/StatisticalArbitrage/blob/master/src/images/res.pdf)
 
 
 ## Backtest
 The backtest below is performed on a portfolio of (max) 20 pairs dynamically entered / exited over time. Entry/Exit transaction costs assumed at 5 bps per trade, initial notional of USD 1 MM. Cointegration test is performed at fixed intervals over time, and there is a fixed trading window period to trade based on the previous cointegration information. More details in the code.
 
-![](/src/images/backtest.pdf)
+![](https://github.com/SimonePerfetto/StatisticalArbitrage/blob/master/src/images/backtest.pdf)
 
 ## Final remarks
 The Project is ongoing and I might implement new features in the future and / or refactor some of the classes used. I hope you enjoyed the read!
