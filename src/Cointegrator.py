@@ -22,7 +22,11 @@ class OLSParams:
     ):
         self._hedge_ratio, self._intercept, self._residuals = cointegration_result
         self._kf_flag = kf_flag
-        self._kalman_utils = KalmanUtils(cointegration_result, stock_x, stock_y) if kf_flag else None
+        self._kalman_utils = KalmanUtils(
+            cointegration_result=cointegration_result,
+            stock_x=stock_x,
+            stock_y=stock_y
+        ) if kf_flag else None
         if kf_flag: self._override_hedge_intercept_and_residuals()
 
     @property
@@ -63,7 +67,7 @@ class SignalBuilder:
         self._roll_stats_window = roll_stats_window
         self._num_std_away = num_std_away
         self._ols_params = ols_params
-        self.residual_data = self._build_residual_data(ols_params)
+        self.residual_data = self._build_residual_data(ols_params=ols_params)
         self._last_residual = ols_params.residuals.values[-1]
         self._last_roll_mean, self._last_roll_std, self._last_upper_band, self._last_lower_band = \
             self.residual_data.iloc[-1, :]
@@ -167,7 +171,10 @@ class SignalBuilder:
             mean=previous_mean,
             stdv=previous_std
         )
-        new_mean, new_std = online_roll.update(new=last_residual, old=first_residual)
+        new_mean, new_std = online_roll.update(
+            new=last_residual,
+            old=first_residual
+        )
         return new_mean, new_std
 
     def update_residuals_data(
@@ -224,11 +231,11 @@ class SignalBuilder:
 
         if today < no_new_trades_from_date:
             if previous_signal == 0: return self._evaluate_entry()
-            else: return self._evaluate_exit(previous_signal)
+            else: return self._evaluate_exit(previous_signal=previous_signal)
 
         elif today < trade_window_end_date:
             if previous_signal == 0: return 0
-            else: return self._evaluate_exit(previous_signal)
+            else: return self._evaluate_exit(previous_signal=previous_signal)
 
         return 0
 
@@ -255,7 +262,6 @@ class SignalBuilder:
 
     def get_penultimate_signal(self) -> int:
         return self.signals.iloc[-2]
-
 
 class CointPair:
     def __init__(
@@ -299,12 +305,6 @@ class CointPair:
         signals_series = self.signal_builder.signals.copy()
         signals_series.iloc[-1] = signal_value
         self.signal_builder.signals = signals_series
-
-    def get_last_signal(self) -> int:
-        return self.signal_builder.signals.iloc[-1]
-
-    def get_penultimate_signal(self) -> int:
-        return self.signal_builder.signals.iloc[-2]
 
     def plot_residuals_and_bb_bands(
             self,

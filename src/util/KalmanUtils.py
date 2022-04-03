@@ -8,17 +8,17 @@ from src.Stock import Stock
 class KalmanUtils:
     def __init__(
             self,
-            coint_res: List[Union[float, pd.Series]],
+            cointegration_result: List[Union[float, pd.Series]],
             stock_x: Stock,
             stock_y: Stock
     ):
         self._kf_model, self._state_means, self._state_covs = self.build_kalman_features(
-            coint_res=coint_res,
+            cointegration_result=cointegration_result,
             stock_x=stock_x,
             stock_y=stock_y
         )
         self._kf_residuals, self._kf_hedge_ratio, self._kf_intercept = self.get_kalman_results(
-            coint_res=coint_res,
+            coint_res=cointegration_result,
             stock_x=stock_x,
             stock_y=stock_y
         )
@@ -55,11 +55,11 @@ class KalmanUtils:
 
     @staticmethod
     def build_kalman_features(
-            coint_res: List[Union[float, pd.Series]],
+            cointegration_result: List[Union[float, pd.Series]],
             stock_x: Stock,
             stock_y: Stock
     ) -> Tuple:
-        ols_hedge_ratio, ols_intercept, ols_residuals = coint_res
+        ols_hedge_ratio, ols_intercept, ols_residuals = cointegration_result
         delta = 1e-3
         trans_cov = delta / (1 - delta) * np.eye(2)
         obs_mat = np.vstack([stock_x.price_ts.loc[ols_residuals.index].values,

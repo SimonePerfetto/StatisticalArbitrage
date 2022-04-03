@@ -56,7 +56,8 @@ class Portfolio:
     def formulate_trade_action_from_signal(
             coint_pair: CointPair
     ) -> TradingAction:
-        prev_sign, curr_sign = coint_pair.get_penultimate_signal(), coint_pair.get_last_signal()
+        prev_sign, curr_sign = \
+            coint_pair.signal_builder.get_penultimate_signal(), coint_pair.signal_builder.get_last_signal()
         if curr_sign == 1 and prev_sign == 0:
             return TradingAction.OpenLong
         elif curr_sign == -1 and prev_sign == 0:
@@ -124,8 +125,11 @@ class Portfolio:
             today: date,
             trade_action: str
     ) -> TradedPair:
-        px, py = coint_pair.get_todays_price_x_y(today)
-        nx, ny = self._units_finder(py, coint_pair.hedge_ratio)
+        px, py = coint_pair.get_todays_price_x_y(today=today)
+        nx, ny = self._units_finder(
+            py=py,
+            hedge_ratio=coint_pair.hedge_ratio
+        )
         ticker_x, ticker_y = coint_pair.get_ticker_x_y()
 
         if trade_action == TradingAction.OpenLong:  # long pair means buy 1 unit of y, sell hedgeratio units of x

@@ -9,7 +9,10 @@ from datetime import date
 
 
 class DataRepositoryBase(ABC):
-    def __init__(self, file_name):
+    def __init__(
+            self,
+            file_name: str
+    ):
         self.file_name = file_name
 
     @abstractmethod
@@ -17,7 +20,11 @@ class DataRepositoryBase(ABC):
 
 
 class SPXDataRepository(DataRepositoryBase):
-    def __init__(self, file_name: str, data_download: bool = False):
+    def __init__(
+            self,
+            file_name: str,
+            data_download: bool = False
+    ):
         super().__init__(file_name)
         self.snp_info = self._get_misc_data_from_web()
         if data_download:

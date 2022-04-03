@@ -113,8 +113,14 @@ class TradedPair:
             short_price: float,
             is_pos_closing: bool
     ) -> None:
-        self.long_leg.update_leg_price_and_pnl(new_price=long_price, is_pos_closing=is_pos_closing)
-        self.short_leg.update_leg_price_and_pnl(new_price=short_price, is_pos_closing=is_pos_closing)
+        self.long_leg.update_leg_price_and_pnl(
+            new_price=long_price,
+            is_pos_closing=is_pos_closing
+        )
+        self.short_leg.update_leg_price_and_pnl(
+            new_price=short_price,
+            is_pos_closing=is_pos_closing
+        )
 
     def update_traded_pair_pnl(self) -> None:
         self.pair_prev_holding_pnl = self.pair_current_holding_pnl
