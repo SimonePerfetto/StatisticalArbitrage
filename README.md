@@ -2,7 +2,7 @@
 
 The Project aims at simulating a long-short, dollar-neutral pair trading strategy on a US equity portfolio.
 
-## Rational
+## Rationale
 
 The idea behind trading a pair of stocks relies on the fact that prices of certain pairs "move together" in the long run, as they are exposed to common risk factors. A classical example is public companies operating in the same sector and sharing a similar business model. In the short term, prices of similar stocks can temporarily deviate one from the other, before eventually converging again. A simple trading strategy would therefore exploit this temporary divergence by going long on the relatively underpriced stock and short on the relatively overpriced one, closing both positions when this gap shrinks.
 
